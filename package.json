@@ -1,9 +1,11 @@
 {
   "name": "migiwa",
   "private": true,
-  "type": "module",
   "workspaces": {
-    "packages": ["apps/*", "packages/*"],
+    "packages": [
+      "apps/*",
+      "packages/*"
+    ],
     "catalog": {
       "@cloudflare/vitest-pool-workers": "0.21.3",
       "@hono/mcp": "0.3.1",
@@ -21,6 +23,7 @@
       "zod": "4.4.3"
     }
   },
+  "type": "module",
   "scripts": {
     "type-check": "tsc --noEmit",
     "oxfmt": "oxfmt",
