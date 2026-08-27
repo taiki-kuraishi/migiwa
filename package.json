@@ -19,7 +19,7 @@
     "oxfmt": "oxfmt",
     "oxlint": "oxlint",
     "knip": "knip --config='knip.config.ts'",
-    "test": "turbo test",
+    "test": "vp run -r test",
     "lint": "oxlint --deny-warnings"
   },
   "devDependencies": {
@@ -28,8 +28,8 @@
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
     "oxlint-tsgolint": "7.0.2001",
-    "turbo": "2.10.12",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vite-plus": "0.3.0"
   },
   "peerDependencies": {
     "typescript": "catalog:"

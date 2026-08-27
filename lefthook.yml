@@ -20,10 +20,10 @@ pre-commit:
       run: bun run oxlint
     type-check:root:
       run: bun run type-check
-    type-check:turbo:
-      run: bun turbo type-check
+    type-check:workspaces:
+      run: bunx vp run -r type-check
     cf-typegen:
       stage_fixed: true
-      run: bun turbo cf-typegen
+      run: bunx vp run -r cf-typegen
     knip:
       run: bun run knip

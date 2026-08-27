@@ -23,6 +23,6 @@ jobs:
       - run: bun run oxlint --deny-warnings --format=github
       - run: bun run oxfmt --check
       - run: bun run type-check
-      - run: bun turbo type-check
+      - run: bunx vp run -r type-check
       - run: bun run knip
-      - run: bun turbo test
+      - run: bunx vp run -r test

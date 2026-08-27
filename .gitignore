@@ -2,7 +2,8 @@
 node_modules/
 
 # build output
-.turbo/
+# vite-plus's `vp run` task cache lives at node_modules/.vite/task-cache,
+# already covered by the node_modules/ rule above.
 dist/
 
 # wrangler / cloudflare
