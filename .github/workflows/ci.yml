@@ -28,5 +28,19 @@ jobs:
       - run: bunx vp run oxfmt --check
       - run: bunx vp run type-check
       - run: bunx vp run -r type-check
-      - run: bun run knip
       - run: bunx vp run -r test
+
+  # knip runs on ubuntu-latest, not ubuntu-slim: it parses with oxc-parser, which
+  # pre-allocates a fixed multi-GB ArrayBuffer that fails on ubuntu-slim's ~4.9 GB
+  # ("RangeError: Array buffer allocation failed"). oxlint/oxfmt above are native
+  # binaries and do not hit this, so only knip needs the larger runner.
+  knip:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-mise
+        with:
+          install_args: "bun"
+      - uses: ./.github/actions/setup-bun
+      - run: bun run knip
