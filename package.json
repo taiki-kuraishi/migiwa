@@ -1,0 +1,38 @@
+{
+  "name": "migiwa",
+  "private": true,
+  "workspaces": {
+    "packages": [
+      "apps/*",
+      "packages/*"
+    ],
+    "catalog": {
+      "@types/bun": "1.4.0",
+      "oxfmt": "0.64.0",
+      "oxlint": "1.79.0",
+      "typescript": "7.0.2"
+    }
+  },
+  "type": "module",
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "oxfmt": "oxfmt",
+    "oxlint": "oxlint",
+    "knip": "knip --config='knip.config.ts'",
+    "test": "vp run -r test",
+    "lint": "oxlint --deny-warnings"
+  },
+  "devDependencies": {
+    "@types/node": "26.4.0",
+    "knip": "6.32.3",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "oxlint-tsgolint": "7.0.2001",
+    "typescript": "catalog:",
+    "vite-plus": "0.3.0"
+  },
+  "peerDependencies": {
+    "typescript": "catalog:"
+  },
+  "packageManager": "bun@1.4.0"
+}

@@ -1,0 +1,7 @@
+[tools]
+bun = "1.4.0"
+lefthook = "2.1.10"
+
+[settings]
+npm.bun = true
+lockfile = true
