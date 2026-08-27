@@ -4,12 +4,12 @@ export default {
   bun: { config: ["package.json"] },
   entry: [],
   ignore: [],
-  ignoreBinaries: [".*"],
   project: [],
-  // Catalog entries for PR 2+ workspaces don't exist yet, so this check is a false positive.
+  // Catalog entries for PR 2+ workspaces don't exist yet, so this check is a false positive;
+  // Revisit once those packages consume catalog entries so orphaned ones can be caught again.
   rules: { catalog: "off" },
   workspaces: {
-    ".": { ignoreDependencies: ["turbo"] },
-    "packages/gateway": { entry: ["src/index.ts"] },
+    ".": {},
+    "packages/gateway": {},
   },
 } satisfies KnipConfig;
