@@ -1,8 +1,19 @@
+# dependencies
 node_modules/
-.wrangler/
+
+# build output
 .turbo/
 dist/
-*.log
+
+# wrangler / cloudflare
+.wrangler/
+
+# secrets
 .dev.vars
 .env
+
+# logs
+*.log
+
+# local plans (not published)
 docs/plans/
