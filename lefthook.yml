@@ -1,0 +1,29 @@
+output:
+  - meta
+  - summary
+  - success
+  - failure
+  - execution_info
+  - skips
+
+pre-commit:
+  parallel: true
+  commands:
+    install:
+      run: bun install --frozen-lockfile --dry-run
+    oxfmt:
+      stage_fixed: true
+      exclude: "**/*.png"
+      run: bun run oxfmt
+    oxlint:
+      stage_fixed: true
+      run: bun run oxlint
+    type-check:root:
+      run: bun run type-check
+    type-check:turbo:
+      run: bun turbo type-check
+    cf-typegen:
+      stage_fixed: true
+      run: bun turbo cf-typegen
+    knip:
+      run: bun run knip
