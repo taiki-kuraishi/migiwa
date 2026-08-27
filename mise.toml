@@ -1,5 +1,5 @@
 [tools]
-bun = "1.3.14"
+bun = "1.4.0"
 # required at runtime by npm-installed tools such as turbo, whose bin scripts shebang to node
 node = "24"
 lefthook = "2.1.10"
