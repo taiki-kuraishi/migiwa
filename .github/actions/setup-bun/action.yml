@@ -1,13 +1,11 @@
 name: Setup Bun
-description: Install bun via mise, cache bun's install cache, and install dependencies.
+description: >
+  Cache bun's install cache and install dependencies. Requires bun to be already
+  installed — call ./.github/actions/setup-mise (install_args "bun") first in the job.
 
 runs:
   using: "composite"
   steps:
-    - uses: ./.github/actions/setup-mise
-      with:
-        # bun runs every JS tool here (oxlint, oxfmt, vp, knip); node is not needed.
-        install_args: "bun"
     - uses: actions/cache@v6
       with:
         path: ~/.bun/install/cache

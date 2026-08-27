@@ -16,6 +16,11 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
+      # Composites are called from the job, never from inside another composite:
+      # setup-mise installs bun, setup-bun caches + installs deps.
+      - uses: ./.github/actions/setup-mise
+        with:
+          install_args: "bun"
       - uses: ./.github/actions/setup-bun
       - uses: ./.github/actions/cache-vp-tasks
       - run: bun run oxlint --deny-warnings --format=github
