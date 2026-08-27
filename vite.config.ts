@@ -7,6 +7,8 @@ import { defineConfig } from "vite-plus";
 // "Task not found" until an app adds a real `cf-typegen` script.
 export default defineConfig({
   run: {
+    // Cache package.json script runs through vp run, keyed on input files; knip is excluded because it mutates its own inputs and never caches.
+    cache: { scripts: true },
     tasks: {
       "cf-typegen": "true",
     },
