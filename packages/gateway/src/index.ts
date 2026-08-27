@@ -18,3 +18,4 @@ export {
   resumePayload,
   type GatewayMessage,
 } from "./payloads";
+export { gatewayHttpUrl } from "./url";
