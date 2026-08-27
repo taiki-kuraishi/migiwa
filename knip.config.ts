@@ -6,7 +6,7 @@ export default {
   ignore: [],
   project: [],
   workspaces: {
-    ".": { entry: ["scripts/*.ts"] },
+    ".": {},
     "packages/gateway": {},
   },
 } satisfies KnipConfig;

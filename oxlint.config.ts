@@ -15,15 +15,6 @@ export default defineConfig({
   },
   overrides: [
     {
-      // CLI tooling scripts follow different conventions than app code.
-      files: ["scripts/**"],
-      rules: {
-        "capitalized-comments": "off",
-        "one-var": "off",
-        "no-continue": "off",
-      },
-    },
-    {
       // Test runners await describe/it themselves; requiring void on every spec is noise.
       files: ["**/*.spec.ts"],
       rules: {

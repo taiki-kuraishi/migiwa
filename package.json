@@ -20,8 +20,7 @@
     "oxlint": "oxlint",
     "knip": "knip --config='knip.config.ts'",
     "test": "vp run -r test",
-    "lint": "oxlint --deny-warnings",
-    "check:duplicate-versions": "bun run scripts/check-duplicate-versions.ts"
+    "lint": "oxlint --deny-warnings"
   },
   "devDependencies": {
     "@types/node": "26.4.0",
