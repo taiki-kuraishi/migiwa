@@ -8,8 +8,8 @@
     ],
     "catalog": {
       "@types/bun": "1.4.0",
-      "oxfmt": "0.65.0",
-      "oxlint": "1.80.0",
+      "oxfmt": "0.64.0",
+      "oxlint": "1.79.0",
       "typescript": "7.0.2"
     }
   },
@@ -20,7 +20,8 @@
     "oxlint": "oxlint",
     "knip": "knip --config='knip.config.ts'",
     "test": "vp run -r test",
-    "lint": "oxlint --deny-warnings"
+    "lint": "oxlint --deny-warnings",
+    "check:duplicate-versions": "bun run scripts/check-duplicate-versions.ts"
   },
   "devDependencies": {
     "@types/node": "26.4.0",

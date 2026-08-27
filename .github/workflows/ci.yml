@@ -23,6 +23,7 @@ jobs:
           install_args: "bun"
       - uses: ./.github/actions/setup-bun
       - uses: ./.github/actions/cache-vp-tasks
+      - run: bun run check:duplicate-versions
       - run: bun run oxlint --deny-warnings --format=github
       - run: bun run oxfmt --check
       - run: bun run type-check
