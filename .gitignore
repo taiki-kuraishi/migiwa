@@ -1,0 +1,8 @@
+node_modules/
+.wrangler/
+.turbo/
+dist/
+*.log
+.dev.vars
+.env
+docs/plans/

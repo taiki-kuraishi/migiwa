@@ -1,0 +1,45 @@
+{
+  "name": "migiwa",
+  "private": true,
+  "type": "module",
+  "workspaces": {
+    "packages": ["apps/*", "packages/*"],
+    "catalog": {
+      "@cloudflare/vitest-pool-workers": "0.21.3",
+      "@hono/mcp": "0.3.1",
+      "@modelcontextprotocol/sdk": "1.30.0",
+      "@types/bun": "1.3.14",
+      "drizzle-kit": "0.31.10",
+      "drizzle-orm": "0.45.2",
+      "hono": "4.13.1",
+      "oxfmt": "0.63.0",
+      "oxlint": "1.77.0",
+      "typescript": "7.0.2",
+      "valibot": "1.4.2",
+      "vitest": "4.1.10",
+      "wrangler": "4.120.1",
+      "zod": "4.4.3"
+    }
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "oxfmt": "oxfmt",
+    "oxlint": "oxlint",
+    "knip": "knip --config='knip.config.ts'",
+    "test": "turbo test",
+    "lint": "oxlint --deny-warnings"
+  },
+  "devDependencies": {
+    "@types/node": "25.9.5",
+    "knip": "latest",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "oxlint-tsgolint": "7.0.2001",
+    "turbo": "2.10.9",
+    "typescript": "catalog:"
+  },
+  "peerDependencies": {
+    "typescript": "catalog:"
+  },
+  "packageManager": "bun@1.3.14"
+}
