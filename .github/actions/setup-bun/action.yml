@@ -1,0 +1,17 @@
+name: Setup Bun
+description: Install bun via mise, cache bun's install cache, and install dependencies.
+
+runs:
+  using: "composite"
+  steps:
+    - uses: ./.github/actions/setup-mise
+      with:
+        # bun runs every JS tool here (oxlint, oxfmt, vp, knip); node is not needed.
+        install_args: "bun"
+    - uses: actions/cache@v6
+      with:
+        path: ~/.bun/install/cache
+        key: bun-install-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+        restore-keys: bun-install-${{ runner.os }}-
+    - shell: bash
+      run: bun install --frozen-lockfile
