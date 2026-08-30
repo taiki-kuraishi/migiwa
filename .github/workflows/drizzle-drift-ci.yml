@@ -1,0 +1,33 @@
+name: drizzle-drift-ci
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "packages/db/**"
+      - "bun.lock"
+      - ".github/workflows/drizzle-drift-ci.yml"
+  pull_request:
+    paths:
+      - "packages/db/**"
+      - "bun.lock"
+      - ".github/workflows/drizzle-drift-ci.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: drizzle-drift-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  drizzle-drift:
+    runs-on: ubuntu-slim
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-mise
+        with:
+          install_args: "bun"
+      - uses: ./.github/actions/setup-bun
+      - run: bun run --cwd packages/db generate:migration
+      # `git add -N` makes a freshly generated (untracked) migration show up in the diff.
+      - run: git add -N . && git diff --exit-code
