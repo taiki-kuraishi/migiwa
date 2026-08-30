@@ -7,6 +7,7 @@ export default {
   project: [],
   workspaces: {
     ".": {},
+    "packages/db": {},
     "packages/gateway": {},
   },
 } satisfies KnipConfig;

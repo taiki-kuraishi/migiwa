@@ -1,0 +1,23 @@
+{
+  "name": "@migiwa/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./migrations": "./drizzle/migrations.js"
+  },
+  "scripts": {
+    "generate:migration": "drizzle-kit generate",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "drizzle-orm": "catalog:"
+  },
+  "devDependencies": {
+    "drizzle-kit": "catalog:"
+  },
+  "peerDependencies": {
+    "typescript": "catalog:"
+  }
+}
