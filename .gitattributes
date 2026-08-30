@@ -2,3 +2,4 @@
 # from language stats. See AGENTS.md "Generated code".
 apps/*/worker-configuration.d.ts linguist-generated=true
 packages/db/drizzle/** linguist-generated=true
+packages/db/drizzle/migrations.d.ts -linguist-generated

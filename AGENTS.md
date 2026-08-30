@@ -54,7 +54,9 @@ and are referenced as `"catalog:"`.
 Anything produced by a generator and committed must be registered in
 `.gitattributes` with `linguist-generated=true` and never hand-edited. Current:
 `apps/*/worker-configuration.d.ts` (`wrangler types`, via `turbo cf-typegen`),
-`packages/db/drizzle/**` (`drizzle-kit generate`).
+`packages/db/drizzle/**` (`drizzle-kit generate`, run via `bun run generate:migration` in
+`packages/db`; the hand-written type shim `drizzle/migrations.d.ts` beside it is the one
+exception).
 
 ## Comments
 
