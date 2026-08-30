@@ -9,12 +9,14 @@
   },
   "scripts": {
     "generate:migration": "drizzle-kit generate",
+    "test:migration": "drizzle-kit migrate --config drizzle.config.sqlite.ts",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "drizzle-orm": "catalog:"
   },
   "devDependencies": {
+    "@libsql/client": "catalog:",
     "drizzle-kit": "catalog:"
   },
   "peerDependencies": {
