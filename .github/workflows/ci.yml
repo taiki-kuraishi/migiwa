@@ -21,6 +21,11 @@ jobs:
       - uses: ./.github/actions/setup-mise
         with:
           install_args: "bun"
+      # mise rewrites mise.lock in place whenever the committed entries no longer
+      # satisfy the install (a bumped mise.toml, a platform it has to resolve
+      # itself). A clean diff here is the proof the lockfile is actually pinning
+      # the toolchain instead of being regenerated from the network every run.
+      - run: git diff --exit-code -- mise.lock
       - uses: ./.github/actions/setup-bun
       - uses: ./.github/actions/cache-vp-tasks
       - run: bun dedupe --check
