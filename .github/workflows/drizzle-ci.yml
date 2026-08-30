@@ -46,4 +46,6 @@ jobs:
       - uses: ./.github/actions/setup-bun
       - run: bun run --cwd packages/db generate:migration
       # `git add -N` makes a freshly generated (untracked) migration show up in the diff.
-      - run: git add -N . && git diff --exit-code
+      # Scoped to the generator's own output: a whole-tree diff also catches files the setup
+      # steps write (mise.lock), which say nothing about drift.
+      - run: git add -N packages/db/drizzle && git diff --exit-code -- packages/db/drizzle
