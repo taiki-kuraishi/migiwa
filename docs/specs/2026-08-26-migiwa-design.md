@@ -411,10 +411,15 @@ CI は GitHub-hosted runner(public リポジトリ):
 
 | workflow | 内容 |
 |---|---|
-| `ci.yml` | oxfmt / oxlint / type-check / knip / `bun test` / vitest / `wrangler types --check` を 1 本に集約(改訂 2026-08-31) |
+| `ci.yml` | oxfmt / oxlint / type-check / knip / `bun test` / vitest / `wrangler types --check` / `wrangler deploy --dry-run` を 1 本に集約(改訂 2026-08-31) |
 | `drizzle-ci.yml` | migrate 検査 + drift 検査(改訂 2026-08-31: `drizzle-drift-ci.yml` から改称・統合) |
-| `deploy-cloudflare.yml` | `main` への push で `on.push.paths`(`apps/bot/**`、`packages/**`、`bun.lock`、`mise.toml`、`mise.lock`、本ワークフロー自身)にマッチしたときだけ、`deploy-bot` ジョブ 1 つが `cloudflare/wrangler-action@v4` で `bot` を deploy。`github.repository == 'taiki-kuraishi/migiwa'` のときだけ実行(改訂 2026-08-31: app が 1 つの間は `dorny/paths-filter` の `changes` job を使わない。`api` が増えたらアプリごとの `changes` フィルタに切り替える)。 |
 | renovate config validation | lefthook のフックと同じ検査 |
+
+**deploy は GitHub Actions では行わない**(改訂 2026-08-31)。Cloudflare ダッシュボードの GitHub
+連携(Workers Builds)がリポジトリを監視して `migiwa-bot` をビルド・deploy する。deploy の設定
+(ビルドコマンド、ルートディレクトリ、対象ブランチ)は Cloudflare 側にあり、GitHub 側に
+`CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` は要らない。リポジトリ内で deploy 可能性を
+担保するのは `ci.yml` の `wrangler deploy --dry-run` だけ(バンドルが壊れていれば PR で落ちる)。
 
 言語とライセンス: コード・コメント・README・コミットメッセージ・PR は英語、`docs/specs/` の設計
 文書は日本語(D10)。`LICENSE` は AGPL-3.0。CLA は最初の外部 PR が来た時点で導入する(それまで
