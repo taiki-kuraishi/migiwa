@@ -91,6 +91,7 @@ Discord Gateway (wss://gateway.discord.gg/?v=10&encoding=json)
 │   KV storage: gateway 状態 (session_id, seq, …)       │
 │   alarm: heartbeat ∪ reconnect backoff ∪ 日次 purge   │
 │   RPC: ensureConnected(), status(), schema(), query() │
+│   HTTP: GET /health(生存確認のみ)                     │
 └───────┬──────────────────────────────────────────────┘
         │ cron "* * * * *" → ensureConnected()   (外形 watchdog)
         │
@@ -104,9 +105,11 @@ Discord Gateway (wss://gateway.discord.gg/?v=10&encoding=json)
 
 - v1 の DO インスタンスはちょうど 1 つ、`idFromName("default")`。複数 bot の hosted 化で変わる
   のはこの名前だけ。
-- DO は初回アクセス時に `locationHint: "enam"` で作る。Discord は Gateway の所在を公開していない
-  ので、PoC で `enam` と `wnam` を比較する。
-- bot Worker は HTTP ルートを持たない。入口は cron trigger と DO だけ。
+- DO は初回アクセス時に、最初のリクエストが着地した場所(Cloudflare のデフォルト配置)で作られる
+  (改訂 2026-08-31: 以前の `locationHint: "enam"` 指定と PoC での `enam`/`wnam` 比較は行わない
+  ことにした)。
+- bot Worker の HTTP ルートは `GET /health` だけ(改訂 2026-08-31: 外形監視と dogfood の確認を api
+  の deploy に依存させないため)。それ以外の入口は cron trigger と DO。
 
 ### 「接続は常時、プロセスは常時ではない」理由
 
@@ -322,6 +325,10 @@ presence 行は guild ごとに重複する、必ず `LIMIT` を付ける。
 
 ### 7.4 `GET /health`
 
+同じ `/health` を `migiwa-bot` も持つが、実装は別物(改訂 2026-08-31)。bot 側は認証なしで
+`BotObject` の状態を一切見ず、常に `200 { "message": "ok" }`(生存確認のみ)を返す。api 側の
+下記の契約(gateway の state を返し、200/503 を分ける)は変えていない。PR A2 でこの契約を確定・変更する。
+
 認証なし。`status().state === "connected"` なら `200 { "state": "connected" }`、それ以外は
 `503 { "state": … }`。外形監視に登録することを想定した、cron に次ぐ「人間向け」の安全網。
 
@@ -357,7 +364,8 @@ MCP クライアントに `https://<api>/mcp` と bearer token を設定する�
 2. **`@cloudflare/vitest-plugin`(`apps/*`、実 workerd)**: `@msw/cloudflare` の `ws.link()` による
    モック Gateway に対する `BotObject`(HELLO → IDENTIFY → READY → dispatch → op 7 → RESUME)、
    `evictDurableObject({ webSockets: "close" })` 後に保存済み `seq` で RESUME が成功すること、
-   新規 DO への migration 適用、`InMemoryTransport` 経由の MCP、`/health` の 200/503、
+   新規 DO への migration 適用、`InMemoryTransport` 経由の MCP、bot の `/health` が常に
+   `200 { "message": "ok" }` を返すこと(改訂 2026-08-31)、api の `/health` の 200/503、
    `sqlite_master` と description のズレ検査。
 3. **Task 0 PoC(手動)**: 作者のアカウントに deploy し、実 Gateway に 24 時間繋いで、ログと
    `/health` で再接続が稀であること、再起動後の RESUME が成功すること、Cloudflare からの egress
@@ -393,7 +401,8 @@ workspace ごとに entry を指定した knip、lefthook の pre-commit 並列�
 `stage_fixed` 付きの oxfmt と oxlint、`turbo build`、root と turbo の type-check、`stage_fixed` 付きの
 `turbo cf-typegen`、knip、renovate-config-validator)、roppoh の `wrangler.jsonc` 規約に従う
 wrangler 4.120(`$schema`、`nodejs_compat`、`observability.logs`、`secrets.required` の明示、
-`workers_dev: false`、`upload_source_maps`)、`worker-configuration.d.ts` を生成する
+`workers_dev: true`(dogfood 中は両 Worker を workers.dev で公開する。改訂 2026-08-31。
+カスタムドメインに移す時に `false` へ戻す)、`upload_source_maps`)、`worker-configuration.d.ts` を生成する
 `wrangler types --strict-vars=false`、catalog 用 regex manager と `bun install --lockfile-only` の
 post-upgrade task と dependency dashboard approval を持つ renovate `config:recommended`。
 `@roppoh/oxlint-plugins`(React/Inertia 用ルール)は持ち込まない。
@@ -402,10 +411,9 @@ CI は GitHub-hosted runner(public リポジトリ):
 
 | workflow | 内容 |
 |---|---|
-| `bun-ci.yml` | `changes`(dorny/paths-filter)→ lint job(oxfmt check、oxlint、type-check、knip)→ workspace ごとの `unit-test` matrix(`bun test`)→ `workers-test`(vitest plugin) |
-| `cf-typegen-drift-ci.yml` | `turbo cf-typegen --force` の後 `git diff --exit-code` |
-| `drizzle-drift-ci.yml` | `drizzle-kit generate` の後 `git diff --exit-code` |
-| `deploy-cloudflare.yml` | `main` への push で、app ごとの `changes` フィルタ → `cloudflare/wrangler-action@v4` で `bot` と `api` を deploy。`github.repository == 'taiki-kuraishi/migiwa'` のときだけ実行 |
+| `ci.yml` | oxfmt / oxlint / type-check / knip / `bun test` / vitest / `wrangler types --check` を 1 本に集約(改訂 2026-08-31) |
+| `drizzle-ci.yml` | migrate 検査 + drift 検査(改訂 2026-08-31: `drizzle-drift-ci.yml` から改称・統合) |
+| `deploy-cloudflare.yml` | `main` への push で `on.push.paths`(`apps/bot/**`、`packages/**`、`bun.lock`、`mise.toml`、`mise.lock`、本ワークフロー自身)にマッチしたときだけ、`deploy-bot` ジョブ 1 つが `cloudflare/wrangler-action@v4` で `bot` を deploy。`github.repository == 'taiki-kuraishi/migiwa'` のときだけ実行(改訂 2026-08-31: app が 1 つの間は `dorny/paths-filter` の `changes` job を使わない。`api` が増えたらアプリごとの `changes` フィルタに切り替える)。 |
 | renovate config validation | lefthook のフックと同じ検査 |
 
 言語とライセンス: コード・コメント・README・コミットメッセージ・PR は英語、`docs/specs/` の設計

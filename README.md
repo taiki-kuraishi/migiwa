@@ -15,7 +15,7 @@ sessionize presence / activity / voice, and query them over MCP.
 
 ```sh
 bun install
-bun test          # packages/* unit tests
+bun run test      # every workspace's tests, through vp run -r test
 bun run type-check
 ```
 
