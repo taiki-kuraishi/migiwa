@@ -32,12 +32,15 @@ export class BotObject extends DurableObject {
     this.db = createDatabaseClient(ctx.storage);
     // Every RPC below may assume the schema exists: nothing is served until this resolves.
     // Drizzle's journal makes re-running it on each restart a no-op.
-    // Not awaited here: blockConcurrencyWhile already blocks every other RPC on this DO until the callback settles.
+    // Not awaited here.
+    // `blockConcurrencyWhile` blocks every other RPC on this DO until the callback settles.
     void ctx.blockConcurrencyWhile(async () => migrate(this.db, migrations));
   }
 
   // The connection state machine arrives in PR B; until then the bot is honestly "stopped".
-  // eslint-disable-next-line class-methods-use-this -- DO RPC dispatches only to instance methods, so this cannot become static; PR B's gateway state will make it use `this`.
+  // DO RPC dispatches only to instance methods, so `status` cannot become static.
+  // PR B's gateway state will make this method use `this`.
+  // eslint-disable-next-line class-methods-use-this -- see the comment above.
   public async status(): Promise<StatusReport> {
     return {
       state: "stopped",

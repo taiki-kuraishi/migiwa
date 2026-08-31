@@ -13,8 +13,8 @@ const USER_TABLES = [
   "voice_sessions",
 ];
 
-// Besides user tables, sqlite_master lists sqlite_sequence (AUTOINCREMENT), __drizzle_migrations
-// And workerd's _cf_* internals, so user tables are whatever is left after dropping those prefixes.
+// Besides user tables, sqlite_master lists sqlite_sequence and __drizzle_migrations.
+// It also lists workerd's `_cf_*` internals; user tables are what remains after filtering these.
 function userTables(sql: SqlStorage): string[] {
   return sql
     .exec<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
