@@ -1,0 +1,42 @@
+name: deploy-cloudflare
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/bot/**"
+      - "packages/**"
+      - "bun.lock"
+      - "mise.toml"
+      - "mise.lock"
+      - ".github/workflows/deploy-cloudflare.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# No cancel-in-progress: a deploy that is interrupted half-way leaves a mixed state.
+# Consecutive pushes queue and run serially instead.
+concurrency:
+  group: deploy-cloudflare-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy-bot:
+    # Forks have neither the token nor the account; do not even try.
+    if: github.repository == 'taiki-kuraishi/migiwa'
+    runs-on: ubuntu-slim
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-mise
+        with:
+          install_args: "bun"
+      - uses: ./.github/actions/setup-bun
+      - uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/bot
+          packageManager: bun
+          command: deploy

@@ -14,7 +14,7 @@ Always use Bun. Never npm, yarn, or pnpm. The version is pinned in
 ## TypeScript
 
 TypeScript 7 is a native (Go) compiler. The terminal (`bun run type-check`,
-`bun turbo type-check`) is the source of truth for types; editors need a TS 7
+`bunx vp run -r type-check`) is the source of truth for types; editors need a TS 7
 LSP or they show stale semantics. The version is sourced from
 `workspaces.catalog`; every workspace declares `"typescript": "catalog:"` in
 `peerDependencies`. Type-aware lint is `oxlint-tsgolint`, whose version tracks
@@ -34,7 +34,18 @@ and are referenced as `"catalog:"`.
 
 ## Worker app conventions
 
-- `entry.ts` holds no logic: `export default { fetch: app.fetch } satisfies ExportedHandler<Cloudflare.Env>`.
+- `entry.ts` wires handlers to the app; it may hold a handler whose body is a
+  single call, but routing, middleware, and business logic live in
+  `server.ts` / `routes/`:
+
+  ```ts
+  export default {
+    fetch: app.fetch,
+    async scheduled(_controller, env, _ctx) {
+      await botStub(env).ensureConnected();
+    },
+  } satisfies ExportedHandler<Cloudflare.Env>;
+  ```
 - `server.ts` starts with `export const app = new Hono<HonoEnv>()` and mounts
   routes/middlewares in a single method chain (do not break the chain — it
   preserves RPC type inference). `HonoEnv` is defined here; routes/middlewares
@@ -46,14 +57,19 @@ and are referenced as `"catalog:"`.
 - `packages/*` and binding-free Workers: `bun test`. For an MCP server, drive it
   through the SDK's `InMemoryTransport` + a real client, not direct handler calls.
 - Workers that touch real bindings (Durable Objects, D1, KV): `vitest` +
-  `@cloudflare/vitest-pool-workers`, config in `vitest.config.ts` pointed at a
-  `wrangler.test.jsonc`.
+  `@cloudflare/vitest-plugin` (the package formerly named
+  `@cloudflare/vitest-pool-workers`), config in `vitest.config.ts` pointed at the
+  same `wrangler.jsonc` used for `wrangler deploy` — there is no separate test
+  config. Call the Worker through `exports.default.fetch()` from
+  `cloudflare:workers`; reach inside a Durable Object with `runInDurableObject` from
+  `cloudflare:test`.
 
 ## Generated code
 
 Anything produced by a generator and committed must be registered in
 `.gitattributes` with `linguist-generated=true` and never hand-edited. Current:
-`apps/*/worker-configuration.d.ts` (`wrangler types`, via `turbo cf-typegen`),
+`apps/*/worker-configuration.d.ts` (`wrangler types`, via `bunx vp run -r cf-typegen`;
+CI checks it with `wrangler types --check`),
 `packages/db/drizzle/**` (`drizzle-kit generate`, run via `bun run generate:migration` in
 `packages/db`; the hand-written type shim `drizzle/migrations.d.ts` beside it is the one
 exception).

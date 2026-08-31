@@ -29,6 +29,12 @@ jobs:
       - uses: ./.github/actions/setup-bun
       - uses: ./.github/actions/cache-vp-tasks
       - run: bun dedupe --check
+      # Fails when apps/bot/worker-configuration.d.ts is older than wrangler.jsonc (spec §11).
+      - run: bun run --cwd apps/bot cf-typegen --check
+      # The test runner and wrangler implement the .sql Text rule in different bundlers,
+      # so a green vitest run does not prove the deploy bundle builds. --dry-run makes no
+      # API calls and needs no token or account id.
+      - run: bun run --cwd apps/bot wrangler deploy --dry-run --outdir "$RUNNER_TEMP/bot-dist"
       - run: bunx vp run oxlint --deny-warnings --format=github
       - run: bunx vp run oxfmt --check
       - run: bunx vp run type-check
