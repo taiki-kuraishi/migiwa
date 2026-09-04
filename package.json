@@ -10,6 +10,8 @@
       "@cloudflare/vitest-plugin": "1.1.2",
       "@libsql/client": "0.17.4",
       "@types/bun": "1.4.0",
+      "better-result": "3.0.1",
+      "discord-api-types": "0.38.55",
       "drizzle-kit": "0.31.10",
       "drizzle-orm": "0.45.2",
       "hono": "4.13.5",

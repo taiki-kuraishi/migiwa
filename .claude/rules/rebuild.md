@@ -22,3 +22,33 @@ A newly committed generated file is registered in four places, not one:
 
 Name the CI step that detects drift in it, and say whether that step compares the file body
 or only a header — `cf-typegen --check` compares only a header.
+
+## `discord-api-types` value imports
+
+Import enum and other runtime values from a subpath such as `discord-api-types/gateway/v10`,
+never from the top-level `discord-api-types/v10` barrel. `import type` may still use the
+barrel — type-only imports are erased at compile time and unaffected.
+
+The barrel's `.js` re-exports every subpath with TypeScript's `__exportStar` helper, which
+installs each name on `exports` as a getter (`Object.defineProperty` with a `get`), not a plain
+data property. `discord-api-types/v10.mjs` then does `export const X = mod.X` for every name,
+reading each getter exactly once and snapshotting the result into a `const`. Under
+`apps/bot`'s `@cloudflare/vitest-plugin` runtime, that snapshot read comes back `undefined`.
+A subpath like `discord-api-types/gateway/v10` does not have this problem: `gateway/v10.js`
+defines `GatewayOpcodes` and friends itself, as an own data property assignment
+(`exports.GatewayOpcodes = GatewayOpcodes`), so `gateway/v10.mjs`'s equivalent `const` snapshot
+reads a real value instead of an unresolved getter.
+
+`@migiwa/gateway` re-exports the Gateway enums app code needs (`GatewayDispatchEvents`,
+`GatewayIntentBits`, `GatewayOpcodes`); app code should get them from there rather than import
+`discord-api-types` directly.
+
+## Mocks that accept too much
+
+A mock that accepts more than the real service turns its test into a no-op. When a task's test
+suite fakes an external service, state in the task what the real service **rejects** that the
+mock accepts, and say which behaviour therefore has no test.
+
+The wave-8 mock Discord accepts a RESUME regardless of the preceding close code, so the test
+named for op 7 Reconnect passed green while the real gateway would have dropped the session on
+every reconnect — only the 24-hour soak would have found it.
