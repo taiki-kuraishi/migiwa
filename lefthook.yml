@@ -20,5 +20,7 @@ pre-commit:
       run: bunx vp run oxlint
     type-check:root:
       run: bunx vp run type-check
+    type-check:workspaces:
+      run: bunx vp run -r type-check
     knip:
       run: bun run knip
