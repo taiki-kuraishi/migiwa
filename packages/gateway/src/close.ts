@@ -1,6 +1,6 @@
 // The gateway/v10 subpath is self-contained, unlike the top-level v10 barrel.
-// That barrel's getter-based star exports resolve to undefined under vitest-pool-workers'
-// Vite CJS interop (apps/bot's test runtime).
+// That barrel's getter-based star exports resolve to undefined under
+// @cloudflare/vitest-plugin's Vite CJS interop (apps/bot's test runtime).
 import { GatewayCloseCodes } from "discord-api-types/gateway/v10";
 
 export type CloseDecision =

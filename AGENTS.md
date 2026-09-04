@@ -1,5 +1,9 @@
 # AGENTS.md
 
+`.claude/rules/rebuild.md` collects conventions harvested from code review
+during the 13-wave rebuild and binds the whole repository, not only rebuild
+work; read it too.
+
 ## Language
 
 Code, code comments, README, commit messages, and PRs are in English.
@@ -32,8 +36,11 @@ internal packages (`@migiwa/<name>`, `exports` points at `./src/*.ts`, consumed
 as source, never bundled). A workspace may add a subpath export pointing at
 generated output when a consumer requires the generated form, as
 `@migiwa/db/migrations` does for `drizzle-orm/durable-sqlite/migrator` (spec
-§6.6). Shared dependency versions live in `workspaces.catalog` and are
-referenced as `"catalog:"`.
+§6.6). A `packages/*` package may also re-export a dependency's runtime
+values when a rule requires app code to go through it rather than import the
+dependency directly, as `@migiwa/gateway` does for its `discord-api-types`
+enums — see `.claude/rules/rebuild.md` for why. Shared dependency versions
+live in `workspaces.catalog` and are referenced as `"catalog:"`.
 
 ## Worker app conventions
 
