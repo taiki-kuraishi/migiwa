@@ -33,7 +33,9 @@ jobs:
       - uses: ./.github/actions/setup-bun
       - uses: ./.github/actions/cache-vp-tasks
       - run: bun dedupe --check
-      # Fails when apps/bot/worker-configuration.d.ts is older than wrangler.jsonc.
+      # Diffs a content hash regenerated in memory against the file's own header (env types plus
+      # a runtime header for the workerd version, compatibility_date and compatibility_flags), so
+      # a wrangler bump alone, with wrangler.jsonc untouched, can fail this check too.
       - run: bun run --cwd apps/bot cf-typegen --check
       # The test runner and wrangler implement the .sql Text rule in different bundlers, so a
       # green vitest run does not prove the deploy bundle builds. --dry-run makes no API calls

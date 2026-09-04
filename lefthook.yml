@@ -7,23 +7,31 @@ output:
   - skips
 
 pre-commit:
-  parallel: true
-  commands:
-    install:
-      run: bun install --frozen-lockfile --dry-run
-    oxfmt:
-      stage_fixed: true
-      exclude: "**/*.png"
-      run: bunx vp run oxfmt
-    oxlint:
-      stage_fixed: true
-      run: bunx vp run oxlint
-    type-check:root:
-      run: bunx vp run type-check
-    type-check:workspaces:
-      run: bunx vp run -r type-check
-    cf-typegen:
+  # cf-typegen writes apps/bot/worker-configuration.d.ts, while oxfmt, oxlint and
+  # type-check:workspaces read it (oxfmt rewrites it too), so it runs as its own job before the
+  # parallel group below starts. Keep it that way, or the two overlap and the hook fails
+  # intermittently on false positives. A plain top-level jobs list runs sequentially by default,
+  # so no explicit `parallel: false` is needed here.
+  jobs:
+    - name: cf-typegen
       stage_fixed: true
       run: bunx vp run -r cf-typegen
-    knip:
-      run: bun run knip
+    - name: checks
+      group:
+        parallel: true
+        jobs:
+          - name: install
+            run: bun install --frozen-lockfile --dry-run
+          - name: oxfmt
+            stage_fixed: true
+            exclude: "**/*.png"
+            run: bunx vp run oxfmt
+          - name: oxlint
+            stage_fixed: true
+            run: bunx vp run oxlint
+          - name: type-check:root
+            run: bunx vp run type-check
+          - name: type-check:workspaces
+            run: bunx vp run -r type-check
+          - name: knip
+            run: bun run knip
