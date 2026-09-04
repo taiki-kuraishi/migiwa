@@ -66,3 +66,20 @@ mock accepts, and say which behaviour therefore has no test.
 The wave-8 mock Discord accepts a RESUME regardless of the preceding close code, so the test
 named for op 7 Reconnect passed green while the real gateway would have dropped the session on
 every reconnect — only the 24-hour soak would have found it.
+
+## Wiring typia into a workspace
+
+Every workspace that *executes* a `typia.validate<T>()` call needs the transform wired into
+whatever runs it: a `bunfig.toml` with `[test] preload = ["@ttsc/unplugin/bun-register"]` for
+`bun test`, `@ttsc/unplugin/vite` in the vitest config, and a pre-build for the Worker bundle. A
+workspace that only imports **types** from a validating package needs none of it. An untransformed
+call throws at call time, so the failure is loud — but it is loud in whichever runner you forgot.
+
+## Pointing a Worker's `main` at a build artifact
+
+Pointing a Worker's `main` at a build artifact makes `wrangler types` emit
+`import("./dist/entry")`, which TypeScript cannot resolve — the artifact is JavaScript and
+`allowJs` is off — so every generic in the generated `Env` silently degrades to `any`.
+`skipLibCheck` hides the error and `cf-typegen --check` only compares a header hash, so no gate
+catches it. Commit a two-line `dist/entry.d.ts` re-exporting the source entry, negated in
+`.gitignore`.
