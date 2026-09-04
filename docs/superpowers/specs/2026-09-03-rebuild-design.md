@@ -36,8 +36,8 @@ application(bot)であって guild ではない。特権 intent の審査と閾�
   セッション化、SQLite 保存、保持期間 purge を担う `BotObject` DO と、DO を接続状態に保つ cron。
 - `migiwa-remote-mcp` Worker: `POST /mcp`(Streamable HTTP MCP、ツール `query`)と `GET /health`。
 - Drizzle スキーマと migration、`sqlite_master` から生成するツール description。
-- AGENTS.md のツールチェーン一式(bun / mise / TypeScript 7 / oxlint / oxfmt / knip / lefthook /
-  renovate / vite-plus / wrangler / vitest)による monorepo と CI。
+- AGENTS.md のツールチェーン一式(bun / mise / TypeScript 7 + ttsc / typia / oxlint / oxfmt / knip /
+  lefthook / renovate / vite-plus / wrangler / vitest)による monorepo と CI。
 - 実 Gateway に 24 時間繋ぎ続ける PoC。
 
 ### v1 に含まないもの(明示)
@@ -80,6 +80,7 @@ D1 の制御プレーン、Discord OAuth サインイン、暗号化した token
 | D10 | **コード・コメント・README・commit・PR は英語。spec と plan は日本語。** | 置き場所が `docs/superpowers/` に変わる(§2) |
 | D11 | **生イベントの `events` テーブルは残す**(7 日保持)。用途はセッション化のデバッグと、セッション行に落とさなかったフィールドの `json_extract` 参照。 | 旧 D3 の一部を明示 |
 | D12 | **失敗しうる関数は `better-result` の `Result` を返す。** エラーは `TaggedError` で `_tag` を持ち(`MalformedFrame`、`NotReadOnlySql`、`GatewayBotFailed`、`ShardingRequired`、`IdentifyBudgetExhausted`、`UpgradeFailed`、`MalformedDispatch`)、複数手順の合成は `Result.gen`、分岐は `match` で網羅する。`throw` はバグ(到達しないはずの状態)にだけ使う。DO の RPC と MCP のツール応答は structured clone なので `Result` のインスタンスを運べない。その境界(`BotObject.query()` など)で `match` して plain な値に落とすか `throw` に戻す。 | 新規(2026-09-04)。依存ゼロの 3.x |
+| D13 | **Gateway と REST の payload は typia で実行時検証する。** 検証する型は discord-api-types の型から `Pick` / 交差で組んだ「bot が読むフィールドだけ」のスライス型(`HelloSlice`、`ReadySlice`、`PresenceSlice`、`VoiceStateSlice`、`GuildCreateSlice`、`GuildDeleteSlice`、`GatewayBotSlice`)。`GatewayPresenceUpdateDispatchData` のような型を丸ごと検証すると、Discord の wire が型パッケージと少しでも違った時にイベントを丸ごと捨てるため。封筒(`op` / `s` / `t`)は手書きのまま。typia 14 は `ttsc`(typescript-go ベースのコンパイラ)のプラグインとしてしか動かず事前生成モードが無いので、型検査は `ttsc --noEmit`、`bun test` は `@ttsc/unplugin/bun` の preload、vitest は `@ttsc/unplugin/vite`、Worker は `wrangler.jsonc` の `build.command` で `@ttsc/unplugin/esbuild` を通した JS を `main` に渡す。 | 新規(2026-09-04、user 判断)。worker と root の推奨は「入れない」だったが、検証を型から生成する価値を優先した |
 
 ## 4. アーキテクチャ
 
@@ -167,10 +168,14 @@ promise chain も再入ガードも持たない。async が残るのは `connect
 
 - **封筒ガード**: `op` が数値、`s` が数値か `null`、`t` が文字列か `null` であることだけを
   手書きの型ガードで確かめ、`Result<GatewayReceivePayload, MalformedFrame>` を返す(D12)。
-  `MalformedFrame.reason` が捨てた理由として件数ログに残る。`d` の中身は実行時検証しない。Discord は信頼できる上流であり、GUILD_CREATE のような大きい payload を
-  毎回検証するのは CPU の無駄。
-- **フィールドの取り出し**: セッション化が読むフィールドは null 許容で取り出し、必須のもの
-  (`guild_id`、`user.id` など)が欠けていればそのイベントを捨てて種別ごとの件数に数える。
+  `MalformedFrame.reason` が捨てた理由として件数ログに残る。`d` はこの段では見ない。
+- **`d` の検証(D13)**: `t` で分岐したあと、`packages/gateway` の `validateDispatch()` が typia で
+  `d` をスライス型に対して検証し、`Result<ValidatedDispatch, MalformedDispatch>` を返す。HELLO の
+  `d` は `validateHello()`、`GET /gateway/bot` の応答は `validateGatewayBotInfo()`。不合格なら typia
+  が返す `path`(例 `$input.user.id`)を理由として件数ログに数え、そのイベントは捨てる(`seq` は
+  進める)。合格した `d` はそのまま `events.payload` に保存する(typia は余分なフィールドを削らない)。
+  READY / RESUMED / GUILD_CREATE / GUILD_DELETE / PRESENCE_UPDATE / VOICE_STATE_UPDATE 以外の `t` は
+  検証せず `seq` だけ進める。
 - **例外**: ハンドラ全体を `try/catch` で包む。失敗は件数に数えてログに出し、ソケットは閉じない。
 - 定数(`GatewayOpcodes`、`GatewayCloseCodes`、`GatewayIntentBits`)と payload 型
   (`GatewayReceivePayload` の `t` による discriminated union、`GatewayIdentify` / `GatewayResume`
@@ -380,7 +385,7 @@ bearer token を設定する。
 ## 10. テスト
 
 1. **`bun test`(純粋ロジック、`packages/*`)**: セッション化の規則(§6.3 の表そのまま)、封筒
-   ガード、close code の分類とバックオフ、heartbeat 状態機械、read-only SQL ガード、
+   ガード、typia の検証器(スライス型ごとの合格 / 不合格と失敗時の `path`)、close code の分類とバックオフ、heartbeat 状態機械、read-only SQL ガード、
    `buildDescription`。
 2. **`@cloudflare/vitest-plugin`(`apps/*`、実 workerd)**: モック Discord(plain JS の auxiliary
    worker。`GET /gateway/bot` と Gateway の WebSocket を偽装し、Miniflare の `outboundService` で
@@ -402,7 +407,8 @@ bearer token を設定する。
 ## 11. リポジトリ、ツールチェーン、CI、deploy
 
 ツールチェーンと規約は AGENTS.md に従う(bun workspaces + `workspaces.catalog`、mise、
-TypeScript 7、oxlint / oxfmt、knip、lefthook、renovate、vite-plus の `vp run`、wrangler、vitest)。
+TypeScript 7 と `ttsc`(型検査と typia の変換、D13)、`@ttsc/unplugin`、oxlint / oxfmt、knip、
+lefthook、renovate、vite-plus の `vp run`、wrangler、vitest)。
 バージョンは AGENTS.md と `package.json` の catalog が真で、この spec には書かない。
 
 ```
@@ -412,10 +418,10 @@ migiwa/
   .npmrc  .editorconfig  .gitattributes  .gitignore  AGENTS.md  CLAUDE.md  README.md
   LICENSE (AGPL-3.0)
   .github/workflows/{ci,drizzle-ci}.yml  .github/actions/{setup-mise,setup-bun,cache-vp-tasks}
-  apps/bot/              migiwa-bot: entry.ts, server.ts, bot-object.ts, wrangler.jsonc(DO, migrations, cron)
+  apps/bot/              migiwa-bot: entry.ts, server.ts, bot-object.ts, build.ts(ttsc 経由の esbuild), wrangler.jsonc(DO, migrations, cron, build.command)
   apps/remote-mcp/       migiwa-remote-mcp: entry.ts, server.ts, routes/{mcp,health}.ts, middlewares/, wrangler.jsonc
   packages/db/           Drizzle スキーマ(1 ファイル 1 テーブル)、drizzle.config.ts、drizzle/ migration、client、行型
-  packages/gateway/      プロトコル純ロジック: 封筒ガード、close code 分類、backoff、heartbeat 状態機械、RPC 契約の型
+  packages/gateway/      プロトコル純ロジック: 封筒ガード、typia の検証器とスライス型、close code 分類、backoff、heartbeat 状態機械、RPC 契約の型
   packages/sessionizer/  reduce(openRows, event, now) → ops
   packages/mcp/          McpServer factory、query ツール、buildDescription
   docs/superpowers/specs/  設計文書(日本語)
