@@ -14,7 +14,12 @@ export default {
     // `cloudflare:test` as a dependency literally named `cloudflare`.
     // `ignoreExportsUsedInFile`: constants and types exported for tests or for readability.
     // Those consumed in the same file are not dead code.
-    "apps/bot": { ignoreDependencies: ["cloudflare"], ignoreExportsUsedInFile: true },
-    "packages/gateway": {},
+    "apps/bot": {
+      ignoreDependencies: ["cloudflare"],
+      ignoreExportsUsedInFile: true,
+    },
+    // `@ttsc/unplugin` is only referenced by name inside `bunfig.toml`'s `[test] preload`
+    // (the `bun-register` subpath), which knip does not parse as a dependency usage site.
+    "packages/gateway": { ignoreDependencies: ["@ttsc/unplugin"] },
   },
 } satisfies KnipConfig;

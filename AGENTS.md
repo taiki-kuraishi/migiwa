@@ -24,6 +24,13 @@ LSP or they show stale semantics. The version is sourced from
 `peerDependencies`. Type-aware lint is `oxlint-tsgolint`, whose version tracks
 TypeScript's (`7.0.2xxx` = TS 7.0.2) — bump both together.
 
+Type-check runs through `ttsc` (typescript-go plus the typia plugin), not `tsc`: same
+tsconfig, same flags. `typescript` stays in the catalog only to pair with `oxlint-tsgolint`.
+`typia.validate<T>()` is rewritten at compile time, so every path that executes such a call
+carries the transform: `bunfig.toml` preload for `bun test`, `@ttsc/unplugin/vite` for vitest,
+and `apps/bot/build.ts` (run by wrangler's `build.command`) for the Worker. A package that
+only imports types from `@migiwa/gateway` needs none of this.
+
 ## Formatting & linting
 
 - Formatter: `oxfmt` (`oxfmt.config.ts`). Linter: `oxlint` (`oxlint.config.ts`).
