@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1788488229458,
+      "tag": "20260904021709_bitter_stellaris",
+      "breakpoints": true
+    }
+  ]
+}
