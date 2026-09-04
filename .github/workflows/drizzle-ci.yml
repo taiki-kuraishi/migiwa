@@ -7,12 +7,19 @@ on:
       - "packages/db/**"
       - "bun.lock"
       - ".github/workflows/drizzle-ci.yml"
+      - ".github/actions/**"
   pull_request:
     paths:
       - "packages/db/**"
       - "bun.lock"
       - ".github/workflows/drizzle-ci.yml"
+      - ".github/actions/**"
   workflow_dispatch:
+
+# Narrowed from the repository default: every job here only reads the checked-out code. This
+# file is the template the other `*-ci` workflows get copied from, so keep the scope tight here.
+permissions:
+  contents: read
 
 concurrency:
   group: drizzle-${{ github.event.pull_request.number || github.ref }}

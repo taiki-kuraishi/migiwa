@@ -14,7 +14,7 @@ queried through MCP.
 mise install
 bun install
 mise exec -- lefthook install
-bunx vp run oxlint --deny-warnings && bunx vp run oxfmt --check && bunx vp run type-check && bun run knip && bun dedupe --check
+bunx vp run oxlint --deny-warnings && bunx vp run oxfmt --check && bunx vp run type-check && bunx vp run -r type-check && bun run knip && bun dedupe --check
 ```
 
 ## License

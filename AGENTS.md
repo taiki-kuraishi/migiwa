@@ -29,8 +29,11 @@ TypeScript's (`7.0.2xxx` = TS 7.0.2) — bump both together.
 
 `apps/*` are thin deploy units (one Worker each). `packages/*` are source-only
 internal packages (`@migiwa/<name>`, `exports` points at `./src/*.ts`, consumed
-as source, never bundled). Shared dependency versions live in `workspaces.catalog`
-and are referenced as `"catalog:"`.
+as source, never bundled). A workspace may add a subpath export pointing at
+generated output when a consumer requires the generated form, as
+`@migiwa/db/migrations` does for `drizzle-orm/durable-sqlite/migrator` (spec
+§6.6). Shared dependency versions live in `workspaces.catalog` and are
+referenced as `"catalog:"`.
 
 ## Worker app conventions
 
@@ -69,7 +72,15 @@ and are referenced as `"catalog:"`.
 Anything produced by a generator and committed must be registered in
 `.gitattributes` with `linguist-generated=true` and never hand-edited. The
 list of generated paths lives in `.gitattributes`; each generator's command is
-the `scripts` entry of the workspace that owns it.
+the `scripts` entry of the workspace that owns it. A hand-written file living
+inside a generated directory is exempted back out with a `-linguist-generated`
+line in `.gitattributes`; it is the only kind of file in a generated tree that
+may be edited by hand. `drizzle-ci.yml`'s drift job is the only thing that
+catches a Drizzle schema change nobody regenerated, since the pre-commit hook
+does not run generators: after changing a schema under
+`packages/db/src/schemas/`, run the owning workspace's generate script
+(`bun run --cwd packages/db generate:migration`) and commit the generated
+migration alongside the schema change.
 
 ## Comments
 
