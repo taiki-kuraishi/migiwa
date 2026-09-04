@@ -32,6 +32,11 @@ jobs:
       - run: git diff --exit-code -- mise.lock
       - uses: ./.github/actions/setup-bun
       - uses: ./.github/actions/cache-vp-tasks
+      # ttsc installs a ~185 MB bundled Go toolchain and compiles typia's plugin from Go
+      # source on first use (cf-typegen --check below runs the pre-build, which is the first
+      # ttsc invocation in this job). Neither directory is covered by setup-bun's or
+      # cache-vp-tasks' caches, and this 10-minute job is otherwise cold every run.
+      - uses: ./.github/actions/cache-ttsc
       - run: bun dedupe --check
       # Diffs a content hash regenerated in memory against the file's own header (env types plus
       # a runtime header for the workerd version, compatibility_date and compatibility_flags), so
@@ -41,6 +46,18 @@ jobs:
       # green vitest run does not prove the deploy bundle builds. --dry-run makes no API calls
       # and needs no token or account id. Workers Builds does the real deploy (spec §11).
       - run: bun run --cwd apps/bot wrangler deploy --dry-run --outdir "$RUNNER_TEMP/bot-dist"
+      # Falsifiable gate for the Worker's typia transform (spec D13). `grep -c "typia"
+      # <outdir>/*.js` would not work: esbuild tree-shakes every validator call out of a working
+      # bundle, so 0 matches is the expected result whether the transform ran or silently
+      # stopped running. An untransformed `typia.validate<T>()` throws
+      # NoTransformConfigurationError at runtime instead, and esbuild bundles that thrown
+      # message's string literal verbatim — so its presence is what is 0 exactly when the
+      # transform works, and nonzero exactly when it doesn't.
+      - run: |
+          if grep -q "no transform has been configured" "$RUNNER_TEMP"/bot-dist/*.js; then
+            echo "::error::Worker bundle contains an untransformed typia.validate<T>() call"
+            exit 1
+          fi
       - run: bunx vp run oxlint --deny-warnings --format=github
       - run: bunx vp run oxfmt --check
       - run: bunx vp run type-check

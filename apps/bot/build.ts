@@ -11,7 +11,9 @@ await build({
   platform: "browser",
   target: "esnext",
   conditions: ["workerd", "worker", "browser"],
-  external: ["cloudflare:*"],
+  // Wrangler.jsonc enables nodejs_compat.
+  // With platform: "browser", esbuild fails on the first node: import in the bundled graph.
+  external: ["cloudflare:*", "node:*"],
   loader: { ".sql": "text" },
   sourcemap: true,
   plugins: [ttsc()],

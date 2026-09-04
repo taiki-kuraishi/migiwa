@@ -43,6 +43,20 @@ reads a real value instead of an unresolved getter.
 `GatewayIntentBits`, `GatewayOpcodes`); app code should get them from there rather than import
 `discord-api-types` directly.
 
+## The `GOROOT` hazard
+
+`ttsc` hashes `GOROOT` into its plugin cache key and only sets it when unset. An ambient
+`GOROOT`/`GOBIN` export from a machine-level mise or asdf Go install therefore poisons every
+`ttsc` invocation in a workspace that uses typia, breaking every test with a Go version
+mismatch between that install and `ttsc`'s own bundled Go toolchain. This cost two
+implementers a debugging session before it was written down anywhere. Prefix the affected
+command with `env -u GOROOT -u GOBIN` to clear the ambient values.
+
+CI is not exposed: `mise.toml` lists only `bun` and `lefthook`, so no Go install ever lands
+on a runner's `PATH`. The Cloudflare Workers Builds image that runs the actual deploy is on
+the same critical path but is not under this repo's control, so the hazard can still surface
+there.
+
 ## Mocks that accept too much
 
 A mock that accepts more than the real service turns its test into a no-op. When a task's test

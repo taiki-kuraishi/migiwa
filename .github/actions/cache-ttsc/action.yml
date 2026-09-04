@@ -1,0 +1,22 @@
+name: Cache ttsc toolchain
+description: >
+  Restore (and save in post) ttsc's Go toolchain artifacts: the compiled typia plugin cache
+  (node_modules/.cache/ttsc) and the Go module cache that compile pulls from (~/go/pkg/mod).
+  ttsc's own comment calls building typia's plugin from Go source a multi-second-to-minutes
+  `go build`, and neither directory is cached by setup-bun or setup-mise.
+
+runs:
+  using: "composite"
+  steps:
+    # Both keyed on bun.lock: it pins ttsc and typia (via workspaces.catalog), so a version
+    # bump that invalidates the compiled plugin also changes this key.
+    - uses: actions/cache@v6
+      with:
+        path: node_modules/.cache/ttsc
+        key: ttsc-plugin-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+        restore-keys: ttsc-plugin-${{ runner.os }}-
+    - uses: actions/cache@v6
+      with:
+        path: ~/go/pkg/mod
+        key: go-mod-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+        restore-keys: go-mod-${{ runner.os }}-

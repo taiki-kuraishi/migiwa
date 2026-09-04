@@ -1,9 +1,12 @@
 import type { KnipConfig } from "knip";
 
 export default {
-  bun: { config: ["package.json"] },
+  bun: { config: ["package.json", "bunfig.toml"] },
   entry: [],
-  ignore: [],
+  // `apps/bot/dist/entry.d.ts` is a hand-written shim (spec D13), only reachable through
+  // `worker-configuration.d.ts`'s `import("./dist/entry")` type positions.
+  // Knip does not trace that edge, so the file otherwise reads as unused.
+  ignore: ["apps/bot/dist/entry.d.ts"],
   project: [],
   workspaces: {
     ".": {},
@@ -18,8 +21,5 @@ export default {
       ignoreDependencies: ["cloudflare"],
       ignoreExportsUsedInFile: true,
     },
-    // `@ttsc/unplugin` is only referenced by name inside `bunfig.toml`'s `[test] preload`
-    // (the `bun-register` subpath), which knip does not parse as a dependency usage site.
-    "packages/gateway": { ignoreDependencies: ["@ttsc/unplugin"] },
   },
 } satisfies KnipConfig;

@@ -103,6 +103,28 @@ describe("validateDispatch", () => {
     ).toBe("$input.member_count");
   });
 
+  // Discord documents GUILD_CREATE's presences as partial presence update objects.
+  // The guild id is already on `d.id`.
+  // A guild with at least one non-offline member sends presences without guild_id on the wire.
+  // This must not be rejected.
+  test("GUILD_CREATE presences may omit guild_id", () => {
+    const result = dispatch("GUILD_CREATE", {
+      id: "g1",
+      name: "G",
+      member_count: 3,
+      large: false,
+      presences: [
+        {
+          user: { id: "u1" },
+          status: "online",
+          client_status: { desktop: "online" },
+        },
+      ],
+      voice_states: [],
+    });
+    expect(result.unwrap().t).toBe("GUILD_CREATE");
+  });
+
   test("READY, RESUMED and GUILD_DELETE", () => {
     const ready = dispatch("READY", {
       v: 10,
@@ -117,6 +139,43 @@ describe("validateDispatch", () => {
       t: "GUILD_DELETE",
       d: { id: "g1" },
     });
+  });
+
+  // `unavailable` is optional on GatewayGuildDeleteDispatchData; nothing pins it being present.
+  // This is the "bot was kicked" case that drives a guild_removed close (spec §4).
+  test("GUILD_DELETE without unavailable is a valid kick notice", () => {
+    expect(dispatch("GUILD_DELETE", { id: "g1" }).unwrap()).toMatchObject({
+      t: "GUILD_DELETE",
+      d: { id: "g1" },
+    });
+  });
+
+  // The "leave" case: Discord sends channel_id: null when a user leaves voice entirely.
+  // This must close the bot's voice session rather than get rejected as malformed.
+  test("VOICE_STATE_UPDATE with channel_id: null closes the voice session", () => {
+    const result = dispatch("VOICE_STATE_UPDATE", {
+      user_id: "u1",
+      session_id: "vs",
+      channel_id: null,
+      self_mute: false,
+      self_deaf: false,
+      mute: false,
+      deaf: false,
+      self_video: false,
+      suppress: false,
+    });
+    expect(result.unwrap().t).toBe("VOICE_STATE_UPDATE");
+  });
+
+  // The close-everything case: a bare offline status with no activities must still validate.
+  // This is what tells the bot to tear down every session tied to that user.
+  test("PRESENCE_UPDATE with status: offline and no activities", () => {
+    const result = dispatch("PRESENCE_UPDATE", {
+      user: { id: "u1" },
+      guild_id: "g1",
+      status: "offline",
+    });
+    expect(result.unwrap().t).toBe("PRESENCE_UPDATE");
   });
 
   test("any other event passes through as OTHER without looking at d", () => {

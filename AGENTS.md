@@ -31,6 +31,17 @@ carries the transform: `bunfig.toml` preload for `bun test`, `@ttsc/unplugin/vit
 and `apps/bot/build.ts` (run by wrangler's `build.command`) for the Worker. A package that
 only imports types from `@migiwa/gateway` needs none of this.
 
+`@ttsc/linux-x64`'s binary vendors its own snapshot of `microsoft/typescript-go` and embeds
+its own `lib.*.d.ts`, so the `typescript@7.0.2` catalog pin no longer type-checks anything —
+it only feeds `oxlint-tsgolint`'s version. Renovate bumping `typescript` alone does not move
+what `type-check` actually does; only a `ttsc` bump does. `ttsc` and `@ttsc/unplugin` must move
+together — `@ttsc/unplugin`'s peer is `ttsc: ^0.28.5`, and `renovate.json` has no
+`packageRules` grouping them, so they arrive as two independent PRs and both need merging.
+
+Plain `bun test` from the repo root gets no transform: `packages/gateway/bunfig.toml`'s
+`[test] preload` is only read when cwd is that package. Use `vp run -r test` or
+`bun run --cwd packages/gateway test` instead.
+
 ## Formatting & linting
 
 - Formatter: `oxfmt` (`oxfmt.config.ts`). Linter: `oxlint` (`oxlint.config.ts`).
