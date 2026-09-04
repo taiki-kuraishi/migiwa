@@ -42,7 +42,7 @@ bunx vp run oxlint --deny-warnings
 bunx vp run oxfmt --check
 bunx vp run type-check
 bunx vp run -r type-check
-bunx vp run -r test  # not yet meaningful: no workspace declares a `test` script until wave 6
+bunx vp run -r test
 bun run knip
 ```
 
