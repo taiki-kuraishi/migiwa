@@ -1,9 +1,17 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "migiwa-bot",
-  "main": "./src/entry.ts",
+  "main": "./dist/entry.js",
   "compatibility_date": "2026-08-01",
   "compatibility_flags": ["nodejs_compat"],
+  // Custom build (spec D13): typia's transform needs ttsc, which wrangler's bundler cannot
+  // load. `wrangler deploy` / `dev` / `deploy --dry-run` run this first.
+  // The bundle also pulls in packages/gateway/src and packages/db/src (workspace source
+  // packages, spec §6), so `wrangler dev` needs all three watched to retrigger the custom build.
+  "build": {
+    "command": "bun run build",
+    "watch_dir": ["src", "../../packages/gateway/src", "../../packages/db/src"],
+  },
   "durable_objects": {
     "bindings": [{ "name": "BOT", "class_name": "BotObject" }],
   },
@@ -11,7 +19,9 @@
   // Outer watchdog (spec §4): wakes the DO every minute in case its alarm chain died.
   "triggers": { "crons": ["* * * * *"] },
   // @migiwa/db/migrations imports the .sql files as text (drizzle-kit's durable-sqlite bundle).
-  // fallthrough keeps wrangler's default rules instead of replacing them.
+  // fallthrough keeps wrangler's default rules instead of replacing them. build.ts inlines
+  // .sql itself, so this rule is unused in practice; it's the fallback if dist/ is deleted and
+  // main is pointed back at src.
   "rules": [{ "type": "Text", "globs": ["**/*.sql"], "fallthrough": true }],
   // Declared empty on purpose: `wrangler types` then stops inferring secrets from .dev.vars.
   // DISCORD_BOT_TOKEN arrives with the gateway client (wave 7).

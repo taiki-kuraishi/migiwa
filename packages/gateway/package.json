@@ -8,14 +8,17 @@
   },
   "scripts": {
     "test": "bun test",
-    "type-check": "tsc --noEmit"
+    "type-check": "ttsc --noEmit"
   },
   "dependencies": {
     "better-result": "catalog:",
-    "discord-api-types": "catalog:"
+    "discord-api-types": "catalog:",
+    "typia": "catalog:"
   },
   "devDependencies": {
-    "@types/bun": "catalog:"
+    "@ttsc/unplugin": "catalog:",
+    "@types/bun": "catalog:",
+    "ttsc": "catalog:"
   },
   "peerDependencies": {
     "typescript": "catalog:"

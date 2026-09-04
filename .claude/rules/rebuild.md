@@ -43,6 +43,20 @@ reads a real value instead of an unresolved getter.
 `GatewayIntentBits`, `GatewayOpcodes`); app code should get them from there rather than import
 `discord-api-types` directly.
 
+## The `GOROOT` hazard
+
+`ttsc` hashes `GOROOT` into its plugin cache key and only sets it when unset. An ambient
+`GOROOT`/`GOBIN` export from a machine-level mise or asdf Go install therefore poisons every
+`ttsc` invocation in a workspace that uses typia, breaking every test with a Go version
+mismatch between that install and `ttsc`'s own bundled Go toolchain. This cost two
+implementers a debugging session before it was written down anywhere. Prefix the affected
+command with `env -u GOROOT -u GOBIN` to clear the ambient values.
+
+CI is not exposed: `mise.toml` lists only `bun` and `lefthook`, so no Go install ever lands
+on a runner's `PATH`. The Cloudflare Workers Builds image that runs the actual deploy is on
+the same critical path but is not under this repo's control, so the hazard can still surface
+there.
+
 ## Mocks that accept too much
 
 A mock that accepts more than the real service turns its test into a no-op. When a task's test
@@ -52,3 +66,20 @@ mock accepts, and say which behaviour therefore has no test.
 The wave-8 mock Discord accepts a RESUME regardless of the preceding close code, so the test
 named for op 7 Reconnect passed green while the real gateway would have dropped the session on
 every reconnect — only the 24-hour soak would have found it.
+
+## Wiring typia into a workspace
+
+Every workspace that *executes* a `typia.validate<T>()` call needs the transform wired into
+whatever runs it: a `bunfig.toml` with `[test] preload = ["@ttsc/unplugin/bun-register"]` for
+`bun test`, `@ttsc/unplugin/vite` in the vitest config, and a pre-build for the Worker bundle. A
+workspace that only imports **types** from a validating package needs none of it. An untransformed
+call throws at call time, so the failure is loud — but it is loud in whichever runner you forgot.
+
+## Pointing a Worker's `main` at a build artifact
+
+Pointing a Worker's `main` at a build artifact makes `wrangler types` emit
+`import("./dist/entry")`, which TypeScript cannot resolve — the artifact is JavaScript and
+`allowJs` is off — so every generic in the generated `Env` silently degrades to `any`.
+`skipLibCheck` hides the error and `cf-typegen --check` only compares a header hash, so no gate
+catches it. Commit a two-line `dist/entry.d.ts` re-exporting the source entry, negated in
+`.gitignore`.

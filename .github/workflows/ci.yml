@@ -15,9 +15,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # lint-and-test runs on ubuntu-latest, not ubuntu-slim, for the same class of reason as knip
+  # below: ttsc compiles typia's plugin from Go source on its first invocation per cache key
+  # (cf-typegen --check is that invocation), and ubuntu-slim's single vCPU could not finish it.
+  # Two runs died at slim's hard 15-minute ceiling with the build still going, and that ceiling
+  # overrides timeout-minutes, so raising the timeout alone does nothing. The same cold build
+  # takes ~3 minutes locally on more cores.
+  #
+  # This is self-healing only if the job survives: a killed job skips every step's Post phase,
+  # including cache-ttsc's save, so a timeout leaves the plugin uncached and the next run
+  # repeats the same cold build. Do not move this back to ubuntu-slim without first confirming
+  # node_modules/.cache/ttsc restores warm (see .github/actions/cache-ttsc).
   lint-and-test:
-    runs-on: ubuntu-slim
-    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
       # Composites are called from the job, never from inside another composite:
@@ -32,6 +43,11 @@ jobs:
       - run: git diff --exit-code -- mise.lock
       - uses: ./.github/actions/setup-bun
       - uses: ./.github/actions/cache-vp-tasks
+      # ttsc installs a ~185 MB bundled Go toolchain and compiles typia's plugin from Go
+      # source on first use (cf-typegen --check below runs the pre-build, which is the first
+      # ttsc invocation in this job). Neither directory is covered by setup-bun's or
+      # cache-vp-tasks' caches, and every run repeats the multi-minute cold build without this.
+      - uses: ./.github/actions/cache-ttsc
       - run: bun dedupe --check
       # Diffs a content hash regenerated in memory against the file's own header (env types plus
       # a runtime header for the workerd version, compatibility_date and compatibility_flags), so

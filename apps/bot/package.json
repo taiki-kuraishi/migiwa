@@ -5,10 +5,11 @@
   "type": "module",
   "main": "./src/entry.ts",
   "scripts": {
+    "build": "bun run build.ts",
     "cf-typegen": "wrangler types --strict-vars=false",
     "dev": "wrangler dev",
     "test": "vitest run",
-    "type-check": "tsc --noEmit"
+    "type-check": "ttsc --noEmit"
   },
   "dependencies": {
     "@migiwa/db": "workspace:*",
@@ -18,6 +19,10 @@
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "catalog:",
+    "@ttsc/unplugin": "catalog:",
+    "esbuild": "catalog:",
+    "ttsc": "catalog:",
+    "typia": "catalog:",
     "vitest": "catalog:",
     "wrangler": "catalog:"
   },

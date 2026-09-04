@@ -1,0 +1,4 @@
+# typia 14 rewrites typia.validate<T>() at compile time; bun test has no compiler step of its
+# own, so ttsc's transform is registered before any test file loads (spec D13).
+[test]
+preload = ["@ttsc/unplugin/bun-register"]

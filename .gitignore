@@ -15,3 +15,6 @@ dist/
 
 # logs
 *.log
+!apps/bot/dist/
+apps/bot/dist/*
+!apps/bot/dist/entry.d.ts

@@ -1,9 +1,12 @@
 import type { KnipConfig } from "knip";
 
 export default {
-  bun: { config: ["package.json"] },
+  bun: { config: ["package.json", "bunfig.toml"] },
   entry: [],
-  ignore: [],
+  // `apps/bot/dist/entry.d.ts` is a hand-written shim (spec D13), only reachable through
+  // `worker-configuration.d.ts`'s `import("./dist/entry")` type positions.
+  // Knip does not trace that edge, so the file otherwise reads as unused.
+  ignore: ["apps/bot/dist/entry.d.ts"],
   project: [],
   workspaces: {
     ".": {},
@@ -14,7 +17,9 @@ export default {
     // `cloudflare:test` as a dependency literally named `cloudflare`.
     // `ignoreExportsUsedInFile`: constants and types exported for tests or for readability.
     // Those consumed in the same file are not dead code.
-    "apps/bot": { ignoreDependencies: ["cloudflare"], ignoreExportsUsedInFile: true },
-    "packages/gateway": {},
+    "apps/bot": {
+      ignoreDependencies: ["cloudflare"],
+      ignoreExportsUsedInFile: true,
+    },
   },
 } satisfies KnipConfig;
