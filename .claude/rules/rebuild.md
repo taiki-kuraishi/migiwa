@@ -42,3 +42,13 @@ reads a real value instead of an unresolved getter.
 `@migiwa/gateway` re-exports the Gateway enums app code needs (`GatewayDispatchEvents`,
 `GatewayIntentBits`, `GatewayOpcodes`); app code should get them from there rather than import
 `discord-api-types` directly.
+
+## Mocks that accept too much
+
+A mock that accepts more than the real service turns its test into a no-op. When a task's test
+suite fakes an external service, state in the task what the real service **rejects** that the
+mock accepts, and say which behaviour therefore has no test.
+
+The wave-8 mock Discord accepts a RESUME regardless of the preceding close code, so the test
+named for op 7 Reconnect passed green while the real gateway would have dropped the session on
+every reconnect — only the 24-hour soak would have found it.
