@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { GatewayIntentBits, GatewayOpcodes } from "discord-api-types/v10";
+import { GatewayIntentBits, GatewayOpcodes } from "discord-api-types/gateway/v10";
 
 import { heartbeatPayload, identifyPayload, INTENTS, resumePayload } from "../src/payloads";
 
@@ -15,15 +15,17 @@ describe("payloads", () => {
   });
 
   test("identify carries the token and the fixed intents", () => {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- JSON.parse returns any.
-    const payload = JSON.parse(identifyPayload("tok")) as {
-      op: number;
-      d: { token: string; intents: number; properties: Record<string, string> };
-    };
-    expect(payload.op).toBe(GatewayOpcodes.Identify);
-    expect(payload.d.token).toBe("tok");
-    expect(payload.d.intents).toBe(INTENTS);
-    expect(payload.d.properties.browser).toBe("migiwa");
+    // Whole-object, like the resume and heartbeat tests below.
+    // A field-by-field assertion would miss a stray extra field such as `compress: true`.
+    // That would make Discord send binary frames, which the envelope guard drops as "binary".
+    expect(JSON.parse(identifyPayload("tok"))).toEqual({
+      op: GatewayOpcodes.Identify,
+      d: {
+        token: "tok",
+        intents: INTENTS,
+        properties: { os: "cloudflare-workers", browser: "migiwa", device: "migiwa" },
+      },
+    });
   });
 
   test("resume carries session id and seq", () => {

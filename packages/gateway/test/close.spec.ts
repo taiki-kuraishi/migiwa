@@ -20,7 +20,9 @@ describe("decideOnClose", () => {
 
   test("gives up on codes only a human can fix", () => {
     expect(decideOnClose(4004)).toEqual({ kind: "fatal", reason: "authentication_failed" });
+    expect(decideOnClose(4010)).toEqual({ kind: "fatal", reason: "invalid_shard" });
     expect(decideOnClose(4011)).toEqual({ kind: "fatal", reason: "sharding_required" });
+    expect(decideOnClose(4012)).toEqual({ kind: "fatal", reason: "invalid_api_version" });
     expect(decideOnClose(4013)).toEqual({ kind: "fatal", reason: "invalid_intents" });
     expect(decideOnClose(4014)).toEqual({ kind: "fatal", reason: "disallowed_intents" });
   });

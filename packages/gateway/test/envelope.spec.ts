@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { GatewayDispatchEvents } from "discord-api-types/v10";
+import { GatewayDispatchEvents } from "discord-api-types/gateway/v10";
 
 import { parseGatewayMessage } from "../src/envelope";
 

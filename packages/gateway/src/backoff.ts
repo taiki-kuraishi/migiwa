@@ -11,6 +11,8 @@ export function invalidSessionDelayMs(random: () => number = Math.random): numbe
 
 // After a fatal close code, the next attempt waits an hour (spec §5.7).
 // A misconfigured bot must not burn the daily IDENTIFY budget of 1,000.
-// IDENTIFYs are also kept in reserve out of that budget (spec §5.3).
 export const FATAL_RETRY_MS = 3_600_000,
+  // The floor under GET /gateway/bot's session_start_limit.remaining.
+  // Below it, connect() waits for session_start_limit.reset_after (spec §5.3).
+  // That avoids spending one of the last IDENTIFYs in the daily budget.
   IDENTIFY_RESERVE = 50;

@@ -17,6 +17,10 @@ describe("heartbeat state machine", () => {
     expect(state.nextDueAt).toBe(1000 + INTERVAL / 2);
     expect(state.lastSentAt).toBeNull();
     expect(state.lastAckAt).toBeNull();
+
+    // A near-1 random pins Math.floor's truncation: 41_250 × 0.9999999 = 41249.995875.
+    // Only Math.floor turns that into 41249 (Math.round or Math.ceil would give 41250 instead).
+    expect(heartbeatOnHello(INTERVAL, 1000, () => 0.9999999).nextDueAt).toBe(42_249);
   });
 
   test("sending schedules the next one a full interval later", () => {

@@ -15,6 +15,8 @@ export const INTENTS =
   // oxlint-disable-next-line no-bitwise -- Discord intents are a bit field by definition.
   GatewayIntentBits.Guilds | GatewayIntentBits.GuildVoiceStates | GatewayIntentBits.GuildPresences;
 
+// Both identifyPayload and resumePayload materialise the bot token into their return value.
+// Never log it.
 export function identifyPayload(token: string): string {
   const payload: GatewayIdentify = {
     op: GatewayOpcodes.Identify,
