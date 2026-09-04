@@ -17,7 +17,18 @@ concurrency:
 jobs:
   lint-and-test:
     runs-on: ubuntu-slim
-    timeout-minutes: 10
+    # 25 minutes, not the previous 10: ttsc compiles typia's plugin from Go source on its
+    # first invocation per cache key (cf-typegen --check below is that first invocation).
+    # A prior run timed out at 10 minutes with the cold build still unfinished after 9; a
+    # local cold-cache repro (empty node_modules/.cache/ttsc, empty GOMODCACHE, network Go
+    # module download included) took ~3 minutes on faster hardware, so this ceiling leaves
+    # real headroom for a slower runner rather than the ~1-2x margin the old number gave.
+    # This headroom matters beyond just letting the job pass once: a killed job skips every
+    # step's Post phase, including cache-ttsc's save, so a timeout here doesn't just fail the
+    # run — it also means the compiled plugin is never cached and every future run repeats
+    # the same cold build and times out again. Do not trim this back without first confirming
+    # node_modules/.cache/ttsc actually restores warm (see .github/actions/cache-ttsc).
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
       # Composites are called from the job, never from inside another composite:
@@ -35,7 +46,7 @@ jobs:
       # ttsc installs a ~185 MB bundled Go toolchain and compiles typia's plugin from Go
       # source on first use (cf-typegen --check below runs the pre-build, which is the first
       # ttsc invocation in this job). Neither directory is covered by setup-bun's or
-      # cache-vp-tasks' caches, and this 10-minute job is otherwise cold every run.
+      # cache-vp-tasks' caches, and every run repeats the multi-minute cold build without this.
       - uses: ./.github/actions/cache-ttsc
       - run: bun dedupe --check
       # Diffs a content hash regenerated in memory against the file's own header (env types plus
