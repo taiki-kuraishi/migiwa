@@ -15,19 +15,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # lint-and-test runs on ubuntu-latest, not ubuntu-slim, for the same class of reason as knip
+  # below: ttsc compiles typia's plugin from Go source on its first invocation per cache key
+  # (cf-typegen --check is that invocation), and ubuntu-slim's single vCPU could not finish it.
+  # Two runs died at slim's hard 15-minute ceiling with the build still going, and that ceiling
+  # overrides timeout-minutes, so raising the timeout alone does nothing. The same cold build
+  # takes ~3 minutes locally on more cores.
+  #
+  # This is self-healing only if the job survives: a killed job skips every step's Post phase,
+  # including cache-ttsc's save, so a timeout leaves the plugin uncached and the next run
+  # repeats the same cold build. Do not move this back to ubuntu-slim without first confirming
+  # node_modules/.cache/ttsc restores warm (see .github/actions/cache-ttsc).
   lint-and-test:
-    runs-on: ubuntu-slim
-    # 25 minutes, not the previous 10: ttsc compiles typia's plugin from Go source on its
-    # first invocation per cache key (cf-typegen --check below is that first invocation).
-    # A prior run timed out at 10 minutes with the cold build still unfinished after 9; a
-    # local cold-cache repro (empty node_modules/.cache/ttsc, empty GOMODCACHE, network Go
-    # module download included) took ~3 minutes on faster hardware, so this ceiling leaves
-    # real headroom for a slower runner rather than the ~1-2x margin the old number gave.
-    # This headroom matters beyond just letting the job pass once: a killed job skips every
-    # step's Post phase, including cache-ttsc's save, so a timeout here doesn't just fail the
-    # run — it also means the compiled plugin is never cached and every future run repeats
-    # the same cold build and times out again. Do not trim this back without first confirming
-    # node_modules/.cache/ttsc actually restores warm (see .github/actions/cache-ttsc).
+    runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
