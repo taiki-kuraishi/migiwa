@@ -13,9 +13,10 @@ queried through MCP.
 ```sh
 mise install
 bun install
-bunx vp run oxlint --deny-warnings && bunx vp run oxfmt --check && bunx vp run type-check && bun run knip
+mise exec -- lefthook install
+bunx vp run oxlint --deny-warnings && bunx vp run oxfmt --check && bunx vp run type-check && bun run knip && bun dedupe --check
 ```
 
 ## License
 
-AGPL-3.0. See `LICENSE`.
+AGPL-3.0-only. See `LICENSE`.
