@@ -6,6 +6,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Narrowed from the repository default: every job here only reads the checked-out code.
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
