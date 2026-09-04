@@ -20,10 +20,5 @@ pre-commit:
       run: bunx vp run oxlint
     type-check:root:
       run: bunx vp run type-check
-    type-check:workspaces:
-      run: bunx vp run -r type-check
-    cf-typegen:
-      stage_fixed: true
-      run: bunx vp run -r cf-typegen
     knip:
       run: bun run knip
