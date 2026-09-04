@@ -32,6 +32,7 @@ jobs:
       - run: bunx vp run oxlint --deny-warnings --format=github
       - run: bunx vp run oxfmt --check
       - run: bunx vp run type-check
+      - run: bunx vp run -r type-check
 
   # knip runs on ubuntu-latest, not ubuntu-slim: it parses with oxc-parser, which
   # pre-allocates a fixed multi-GB ArrayBuffer that fails on ubuntu-slim's ~4.9 GB
