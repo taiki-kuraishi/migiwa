@@ -79,6 +79,7 @@ D1 の制御プレーン、Discord OAuth サインイン、暗号化した token
 | D9 | **ライセンスはリポジトリ全体 AGPL-3.0。** | なし |
 | D10 | **コード・コメント・README・commit・PR は英語。spec と plan は日本語。** | 置き場所が `docs/superpowers/` に変わる(§2) |
 | D11 | **生イベントの `events` テーブルは残す**(7 日保持)。用途はセッション化のデバッグと、セッション行に落とさなかったフィールドの `json_extract` 参照。 | 旧 D3 の一部を明示 |
+| D12 | **失敗しうる関数は `better-result` の `Result` を返す。** エラーは `TaggedError` で `_tag` を持ち(`MalformedFrame`、`NotReadOnlySql`、`GatewayBotFailed`、`ShardingRequired`、`IdentifyBudgetExhausted`、`UpgradeFailed`、`MalformedDispatch`)、複数手順の合成は `Result.gen`、分岐は `match` で網羅する。`throw` はバグ(到達しないはずの状態)にだけ使う。DO の RPC と MCP のツール応答は structured clone なので `Result` のインスタンスを運べない。その境界(`BotObject.query()` など)で `match` して plain な値に落とすか `throw` に戻す。 | 新規(2026-09-04)。依存ゼロの 3.x |
 
 ## 4. アーキテクチャ
 
@@ -151,6 +152,10 @@ cron が毎分呼ぶ。ソケットが open で最終 heartbeat ACK が heartbea
 3. ソケットは `fetch(url, { headers: { Upgrade: "websocket" } })` と `response.webSocket.accept()`
    で開く。`new WebSocket()` は Workers ランタイムが `permessage-deflate` を自動で付けるので
    避ける。転送圧縮(`zlib-stream` / `zstd-stream`)は要求しない。
+4. 1〜3 は `Result.gen` の 1 本の railway で書く(D12)。失敗は `GatewayBotFailed { status }`
+   (401 なら fatal、それ以外はバックオフ)、`ShardingRequired`(fatal)、
+   `IdentifyBudgetExhausted { reset_after }`(その時刻まで待つ)、`UpgradeFailed`(バックオフ)の
+   4 つの `TaggedError` で、`match` が §5.7 の処理に振り分ける。
 
 ### 5.4 受信経路(同期)
 
@@ -161,8 +166,8 @@ cron が毎分呼ぶ。ソケットが open で最終 heartbeat ACK が heartbea
 promise chain も再入ガードも持たない。async が残るのは `connect()` だけ。
 
 - **封筒ガード**: `op` が数値、`s` が数値か `null`、`t` が文字列か `null` であることだけを
-  手書きの型ガードで確かめ、`GatewayReceivePayload`(discord-api-types)に絞る。`d` の中身は
-  実行時検証しない。Discord は信頼できる上流であり、GUILD_CREATE のような大きい payload を
+  手書きの型ガードで確かめ、`Result<GatewayReceivePayload, MalformedFrame>` を返す(D12)。
+  `MalformedFrame.reason` が捨てた理由として件数ログに残る。`d` の中身は実行時検証しない。Discord は信頼できる上流であり、GUILD_CREATE のような大きい payload を
   毎回検証するのは CPU の無駄。
 - **フィールドの取り出し**: セッション化が読むフィールドは null 許容で取り出し、必須のもの
   (`guild_id`、`user.id` など)が欠けていればそのイベントを捨てて種別ごとの件数に数える。
@@ -329,7 +334,8 @@ presence 行は guild ごとに重複する、必ず `LIMIT` を付ける。
 
 - コメントと空白を除いた先頭が `SELECT` / `WITH` / `EXPLAIN` のいずれかであること。2 文目(`;` の
   後に何かある)は拒否。`PRAGMA` と `ATTACH` は拒否。SQLite の `SELECT` は書き込めないので、これで
-  十分。
+  十分。ガードは `packages/db` の純関数 `ensureReadOnly(sql): Result<string, NotReadOnlySql>`(D12)。
+  `query()` は RPC 境界なので `Err` を `throw` に戻し、MCP ツール側が `isError` の応答にする。
 - 行は `ctx.storage.sql.exec()` のカーソルから読み、10,000 行で打ち切る。応答は
   `{ columns, rows, rows_read, truncated }`。
 - 実行時間の上限は DO の CPU 制限のみ。
@@ -362,7 +368,9 @@ bearer token を設定する。
 ## 9. エラー処理と観測
 
 - dispatch 1 件の処理中の例外はログに出して次へ進む。アプリケーションエラーでソケットを閉じる
-  ことはしない。
+  ことはしない。予期できる失敗(封筒が壊れている、必須 id が無い、接続手順の各段)は例外ではなく
+  `Result` の `Err`(D12)で、`_tag` と理由が件数ログに乗る。`try/catch` が残るのはバグを
+  握るためだけ。
 - `alarm()` の失敗は 30 秒後の fallback alarm を積む(§5.5)。`connect()` の失敗はバックオフへ
   (§5.7)。
 - ログは Workers Logs(`wrangler.jsonc` の `observability.enabled`)に JSON 1 行ずつ: 接続イベント(identify /
