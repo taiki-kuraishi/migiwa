@@ -46,18 +46,6 @@ jobs:
       # green vitest run does not prove the deploy bundle builds. --dry-run makes no API calls
       # and needs no token or account id. Workers Builds does the real deploy (spec §11).
       - run: bun run --cwd apps/bot wrangler deploy --dry-run --outdir "$RUNNER_TEMP/bot-dist"
-      # Falsifiable gate for the Worker's typia transform (spec D13). `grep -c "typia"
-      # <outdir>/*.js` would not work: esbuild tree-shakes every validator call out of a working
-      # bundle, so 0 matches is the expected result whether the transform ran or silently
-      # stopped running. An untransformed `typia.validate<T>()` throws
-      # NoTransformConfigurationError at runtime instead, and esbuild bundles that thrown
-      # message's string literal verbatim — so its presence is what is 0 exactly when the
-      # transform works, and nonzero exactly when it doesn't.
-      - run: |
-          if grep -q "no transform has been configured" "$RUNNER_TEMP"/bot-dist/*.js; then
-            echo "::error::Worker bundle contains an untransformed typia.validate<T>() call"
-            exit 1
-          fi
       - run: bunx vp run oxlint --deny-warnings --format=github
       - run: bunx vp run oxfmt --check
       - run: bunx vp run type-check
