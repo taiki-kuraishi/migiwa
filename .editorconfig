@@ -24,3 +24,11 @@ insert_final_newline = false
 [packages/db/drizzle/migrations.d.ts]
 trim_trailing_whitespace = true
 insert_final_newline = true
+
+# wrangler's generated output (see AGENTS.md "Generated code"): tab-indented with trailing
+# whitespace on several lines. Unlike the drizzle case above, CI does not catch a corruption
+# here: cf-typegen --check only compares the header hash, and the lefthook cf-typegen job
+# regenerates over whatever an editor leaves behind.
+[apps/*/worker-configuration.d.ts]
+indent_style = tab
+trim_trailing_whitespace = false
