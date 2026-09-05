@@ -1,7 +1,14 @@
 ---
 name: create-pr
-description: Open a pull request for this repo following its conventions — a gitmoji-prefixed title, the PR template body, and gh stack for stacked PRs. Use whenever creating a PR in this repository.
+description: Open a pull request for this repo following its conventions — a gitmoji-prefixed title and the PR template body, using gh stack for stacked PRs outside the rebuild. Use whenever creating a PR in this repository.
 ---
+
+> **Rebuild in progress.** Until `docs/superpowers/plans/2026-09-04-rebuild.md` lands, branches
+> are `rebuild-w<N>` cut from the previous wave's branch, and PRs are opened with
+> `gh pr create --base <previous branch>`. `gh stack` and the `feat/<slug>` naming below do not
+> apply. Do not run `bunx vp run -r ...` while the repo has no workspaces — use the
+> non-recursive `bunx vp run ...` forms instead. The gitmoji title format and the PR template
+> body below still apply. See the plan's Global Constraints for authority.
 
 # Create a PR (migiwa)
 
