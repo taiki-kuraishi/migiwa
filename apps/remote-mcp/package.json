@@ -1,0 +1,26 @@
+{
+  "name": "@migiwa/remote-mcp",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/entry.ts",
+  "scripts": {
+    "cf-typegen": "wrangler types --strict-vars=false",
+    "dev": "wrangler dev",
+    "test": "vitest run",
+    "type-check": "ttsc --noEmit"
+  },
+  "dependencies": {
+    "@migiwa/gateway": "workspace:*",
+    "hono": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "catalog:",
+    "ttsc": "catalog:",
+    "vitest": "catalog:",
+    "wrangler": "catalog:"
+  },
+  "peerDependencies": {
+    "typescript": "catalog:"
+  }
+}

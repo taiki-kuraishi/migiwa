@@ -21,5 +21,11 @@ export default {
       ignoreDependencies: ["cloudflare"],
       ignoreExportsUsedInFile: true,
     },
+    // The fake bot is loaded by vitest.config.ts through a Miniflare scriptPath.
+    // Knip cannot follow that, so it is listed as an entry by hand.
+    "apps/remote-mcp": {
+      entry: ["test/fake-bot/worker.js"],
+      ignoreDependencies: ["cloudflare"],
+    },
   },
 } satisfies KnipConfig;

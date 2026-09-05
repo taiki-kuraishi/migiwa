@@ -40,6 +40,23 @@
         "typescript": "catalog:",
       },
     },
+    "apps/remote-mcp": {
+      "name": "@migiwa/remote-mcp",
+      "version": "0.0.0",
+      "dependencies": {
+        "@migiwa/gateway": "workspace:*",
+        "hono": "catalog:",
+      },
+      "devDependencies": {
+        "@cloudflare/vitest-plugin": "catalog:",
+        "ttsc": "catalog:",
+        "vitest": "catalog:",
+        "wrangler": "catalog:",
+      },
+      "peerDependencies": {
+        "typescript": "catalog:",
+      },
+    },
     "packages/db": {
       "name": "@migiwa/db",
       "version": "0.0.0",
@@ -278,6 +295,8 @@
     "@migiwa/db": ["@migiwa/db@workspace:packages/db"],
 
     "@migiwa/gateway": ["@migiwa/gateway@workspace:packages/gateway"],
+
+    "@migiwa/remote-mcp": ["@migiwa/remote-mcp@workspace:apps/remote-mcp"],
 
     "@napi-rs/wasm-runtime": ["@napi-rs/wasm-runtime@1.2.3", "", { "dependencies": { "@tybys/wasm-util": "^0.10.3" }, "peerDependencies": { "@emnapi/core": "^1.7.1 || ^2.0.0-alpha.4", "@emnapi/runtime": "^1.7.1 || ^2.0.0-alpha.4" } }, "sha512-UMduMbqO5s5zF2NkNacMT/yK5Y5QiKvWr2+50bzIIxFDwVJ2h49b+oyjaCGPhJxd2/gC2x39EHv/gHVuu36x2Q=="],
 

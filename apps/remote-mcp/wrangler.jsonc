@@ -1,0 +1,18 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "migiwa-remote-mcp",
+  "main": "./src/entry.ts",
+  "compatibility_date": "2026-08-01",
+  "compatibility_flags": ["nodejs_compat"],
+  // Cross-script binding: BotObject is defined and migrated by migiwa-bot (spec D5), so a
+  // deploy of this Worker never restarts the Durable Object and its gateway socket.
+  "durable_objects": {
+    "bindings": [{ "name": "BOT", "class_name": "BotObject", "script_name": "migiwa-bot" }],
+  },
+  // API_TOKEN arrives with the /mcp route (wave 7).
+  "secrets": { "required": [] },
+  "observability": { "enabled": true },
+  "workers_dev": true,
+  "preview_urls": false,
+  "upload_source_maps": true,
+}

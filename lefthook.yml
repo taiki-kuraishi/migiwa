@@ -7,11 +7,11 @@ output:
   - skips
 
 pre-commit:
-  # cf-typegen writes apps/bot/worker-configuration.d.ts, while oxfmt, oxlint and
-  # type-check:workspaces read it (oxfmt rewrites it too), so it runs as its own job before the
-  # parallel group below starts. Keep it that way, or the two overlap and the hook fails
-  # intermittently on false positives. A plain top-level jobs list runs sequentially by default,
-  # so no explicit `parallel: false` is needed here.
+  # cf-typegen writes each app's worker-configuration.d.ts, while oxfmt, oxlint and
+  # type-check:workspaces read those files (oxfmt rewrites them too), so it runs as its own job
+  # before the parallel group below starts. Keep it that way, or the two overlap and the hook
+  # fails intermittently on false positives. A plain top-level jobs list runs sequentially by
+  # default, so no explicit `parallel: false` is needed here.
   jobs:
     - name: cf-typegen
       stage_fixed: true
