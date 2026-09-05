@@ -319,7 +319,9 @@ v1 の規模では無関係。
 ### 7.1 認証
 
 `/health` 以外の全ルートは `Authorization: Bearer <API_TOKEN>` 必須、定数時間比較。無い・違う →
-401。v1 は token 1 本で rate limit なし。
+401。ヘッダが `Bearer <token>` の文法を満たさない(malformed)→ 400(RFC 6750 の `invalid_request`。
+Hono の `bearerAuth` の挙動)。認証は deny-by-default: middleware は `*` に付け `/health` だけ除外する
+ので、後から足したルートが無認証で公開されることはない。v1 は token 1 本で rate limit なし。
 
 ### 7.2 `POST /mcp`
 
@@ -331,7 +333,8 @@ v1 の規模では無関係。
 定型メトリクスのツールが増えないようにする。設計の要点は「LLM が親切なテーブルに対して SQL を
 書く」ことにある。
 
-ツールの description は `packages/mcp` の純関数 `buildDescription(tables)` で生成する。`tables`
+ツールの description は `packages/mcp` の純関数 `buildDescription(tables)` で生成する(wave 14 まで
+はテーブル名の羅列だけの暫定版。全列・規約入りの本実装と `sqlite_master` とのズレ検査は wave 14)。`tables`
 は DO の `schema()` RPC が `sqlite_master` から返す(`sqlite_%`, `__drizzle_%`, `_cf_%` を prefix で
 除外)。description が全テーブル・全列に触れていることをテストで確認する。description に含める
 内容: テーブルの意味と `end_reason` の値、時刻は Unix ms(`datetime(started_at / 1000, 'unixepoch')`)、
