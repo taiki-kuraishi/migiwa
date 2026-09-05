@@ -20,6 +20,8 @@ export const app = new Hono<HonoEnv>()
       exposeHeaders: ["mcp-session-id"],
     }),
   )
-  .use("/mcp", bearerMiddleware)
+  // Deny by default (spec §7.1): every path, known or not, needs a bearer token except the
+  // Health check, which an uptime monitor hits with no credentials of its own.
+  .use("*", async (c, next) => (c.req.path === "/health" ? next() : bearerMiddleware(c, next)))
   .route("/health", healthRoute)
   .route("/mcp", mcpRoute);

@@ -47,6 +47,13 @@ test("a malformed Authorization header is rejected with 400, not treated as a be
   expect(response.status).toBe(400);
 });
 
+test("an unknown path with a valid token is 404", async () => {
+  const response = await exports.default.fetch(
+    new Request("http://mcp/", { headers: { Authorization: "Bearer test-token" } }),
+  );
+  expect(response.status).toBe(404);
+});
+
 test("GET /health answers with no Authorization header at all", async () => {
   const response = await exports.default.fetch(new Request("http://mcp/health"));
   expect(response.status).not.toBe(401);

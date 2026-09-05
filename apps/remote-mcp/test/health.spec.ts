@@ -23,7 +23,7 @@ test("GET /health is 200 once the bot reports connected", async () => {
   expect(await response.json()).toMatchObject({ state: "connected" });
 });
 
-test("anything else is 404", async () => {
+test("an unknown path without a bearer token is 401, not 404", async () => {
   const response = await exports.default.fetch(new Request("http://mcp/"));
-  expect(response.status).toBe(404);
+  expect(response.status).toBe(401);
 });
