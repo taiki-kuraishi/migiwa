@@ -41,6 +41,38 @@ describe("ensureReadOnly", () => {
     );
   });
 
+  // ATTACH itself is a standalone statement (not usable inside a WITH/SELECT), so a real
+  // `ATTACH ...` never reaches this branch: `not_a_query` or `multiple_statements` catch it
+  // First. The only way to exercise FORBIDDEN's `attach` alternative is a bare identifier named
+  // `attach`, the same over-refusal shape as `pragma_table_info` above.
+  test("rejects a bare `attach` identifier through the forbidden_keyword branch", () => {
+    expect(reasonOf("SELECT attach FROM guilds")).toBe("forbidden_keyword");
+  });
+
+  test("rejects a write verb hidden behind a WITH clause", () => {
+    expect(reasonOf("WITH x AS (SELECT 1) DELETE FROM guilds")).toBe("forbidden_keyword");
+    expect(reasonOf("WITH x AS (SELECT 1) INSERT INTO guilds VALUES ('g', 'n', 0)")).toBe(
+      "forbidden_keyword",
+    );
+    expect(reasonOf("WITH x AS (SELECT 1) UPDATE guilds SET name = 'n'")).toBe("forbidden_keyword");
+    expect(reasonOf("WITH x AS (SELECT 1) REPLACE INTO guilds VALUES ('g', 'n', 0)")).toBe(
+      "forbidden_keyword",
+    );
+    expect(reasonOf("with x as (select 1) delete from guilds")).toBe("forbidden_keyword");
+    expect(
+      reasonOf(
+        "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n WHERE x < 5) " +
+          "DELETE FROM guilds",
+      ),
+    ).toBe("forbidden_keyword");
+  });
+
+  test("does not mistake a write verb inside an identifier or string literal for one", () => {
+    expect(reasonOf("SELECT 'GUILD_DELETE' AS event_type")).toBeNull();
+    expect(reasonOf("SELECT end_reason FROM presence_sessions")).toBeNull();
+    expect(reasonOf("SELECT updated_at FROM guilds")).toBeNull();
+  });
+
   test("the error message names what is allowed", () => {
     const error = ensureReadOnly("DROP TABLE x").match({ ok: () => null, err: (e) => e });
     expect(error?.message).toContain("SELECT / WITH / EXPLAIN");

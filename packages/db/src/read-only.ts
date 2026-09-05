@@ -18,6 +18,11 @@ const LEADING_NOISE = /^(?:\s+|--[^\n]*(?:\n|$)|\/\*[\s\S]*?\*\/)+/,
   // That is a real SQLite table-valued function that leaks PRAGMA data through a plain SELECT.
   // Excluding only letters and digits (not `_`) from the adjacency check catches it too.
   FORBIDDEN = /(?<![a-z0-9])(?:pragma|attach)(?![a-z0-9])/i,
+  // SQLite lets a with-clause open insert / update / delete statements too, so the leading
+  // Keyword proves nothing for WITH: any write verb anywhere in the statement is refused.
+  // Identifier boundaries keep `updated_at`, `end_reason` or 'GUILD_DELETE' from matching.
+  WRITE_VERB =
+    /(?<![a-z0-9_])(?:insert|update|delete|replace|drop|alter|create|vacuum|detach|reindex|savepoint|release)(?![a-z0-9_])/i,
   refuse = (reason: NotReadOnlyReason): Result<never, NotReadOnlySql> =>
     Result.err(
       new NotReadOnlySql({
@@ -26,11 +31,12 @@ const LEADING_NOISE = /^(?:\s+|--[^\n]*(?:\n|$)|\/\*[\s\S]*?\*\/)+/,
       }),
     );
 
-// Read-only guard for BotObject.query() (spec §7.3): one statement, starting with SELECT /
-// WITH / EXPLAIN, no PRAGMA or ATTACH.
-// SQLite cannot write through a SELECT, so this is sufficient.
-// A `;` inside a string literal is rejected too; that is a deliberate simplification, not a bug.
-// Ok carries the statement without its trailing `;`.
+// First read-only layer for BotObject.query() (spec §7.3), a pure text check. Why each leading
+// Keyword is allowed: SELECT cannot write; EXPLAIN only returns the VDBE program; WITH is
+// Allowed only because WRITE_VERB refuses the insert / update / delete forms it can open. A `;`
+// Inside a string literal is rejected too and a literal 'delete' trips WRITE_VERB; both are
+// Deliberate over-refusals. The second layer (readOnlyExec in apps/bot) rolls back anything
+// That still writes. Ok carries the statement without its trailing `;`.
 export function ensureReadOnly(sql: string): Result<string, NotReadOnlySql> {
   const body = sql.replace(LEADING_NOISE, "").trim(),
     statement = body.replace(/;\s*$/, "");
@@ -40,7 +46,7 @@ export function ensureReadOnly(sql: string): Result<string, NotReadOnlySql> {
   if (statement.includes(";")) {
     return refuse("multiple_statements");
   }
-  if (FORBIDDEN.test(statement)) {
+  if (FORBIDDEN.test(statement) || WRITE_VERB.test(statement)) {
     return refuse("forbidden_keyword");
   }
   return Result.ok(statement);
