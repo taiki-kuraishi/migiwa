@@ -9,7 +9,9 @@ import { botStub } from "../bot-stub";
 // Stateless (spec §7.2): a fresh server and transport per request, no session ids. The
 // Description is rebuilt from the live sqlite_master on every request, so it never lags a
 // Migration.
-export const mcpRoute = new Hono<HonoEnv>().all("/", async (c) => {
+// POST only: this server is stateless, so GET's SSE stream has nothing to push, and
+// @hono/mcp would otherwise hold that request open with a keepalive forever.
+export const mcpRoute = new Hono<HonoEnv>().post("/", async (c) => {
   const bot = botStub(c.env),
     server = createMcpServer({
       description: buildDescription(await bot.schema()),
