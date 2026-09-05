@@ -3,12 +3,12 @@ import type { BotRpc } from "@migiwa/gateway";
 import { env, exports } from "cloudflare:workers";
 import { expect, test } from "vitest";
 
-import { botStub } from "../src/bot-stub";
-
 type FakeBot = BotRpc & { setState: (state: string) => Promise<void> };
 const fakeBot = (): FakeBot =>
+  // Pinned independently of src/bot-stub.ts, which this test does not call.
+  // A name mismatch between the two Workers then fails here instead of passing silently.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- fake bot adds setState().
-  botStub(env) as unknown as FakeBot;
+  env.BOT.get(env.BOT.idFromName("default")) as unknown as FakeBot;
 
 test("GET /health is 503 with the status report while the bot is stopped", async () => {
   const response = await exports.default.fetch(new Request("http://mcp/health"));

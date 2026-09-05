@@ -44,9 +44,10 @@ bunx vp run type-check
 bunx vp run -r type-check
 bunx vp run -r test
 bun run knip
-bun run --cwd apps/bot cf-typegen --check
-bun run --cwd apps/bot wrangler deploy --dry-run --outdir /tmp/bot-dist
 ```
+Then run every remaining step of the `lint-and-test` job in `.github/workflows/ci.yml` —
+its per-app `cf-typegen --check` and `wrangler deploy --dry-run` lines grow as apps are
+added, so read that file rather than a list here.
 
 ## 5. Open the PR (stacked — this repo uses `gh stack`)
 - New stack (branches off main): `gh stack init <branch>`, commit, then `gh stack submit --auto --open`.

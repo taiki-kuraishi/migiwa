@@ -1,7 +1,7 @@
 # AGENTS.md
 
 `.claude/rules/rebuild.md` collects conventions harvested from code review
-during the 13-wave rebuild and binds the whole repository, not only rebuild
+during the 14-wave rebuild and binds the whole repository, not only rebuild
 work; read it too.
 
 ## Language
@@ -83,6 +83,12 @@ live in `workspaces.catalog` and are referenced as `"catalog:"`.
   from `entry.ts` by the app that defines it; every app that references the
   object, including across a `script_name` binding, keeps its stub accessor —
   the single home for `idFromName`/`idFromString` — in `src/<name>-stub.ts`.
+- `wrangler types` cannot see a Durable Object class defined in another
+  script, so a cross-script stub is untyped: its `<name>-stub.ts` casts the
+  stub to the RPC contract interface for that class (`BotRpc`, for example),
+  which lives in `packages/gateway`, not in the app that defines the object —
+  apps never import each other. Guard the cast with an
+  `oxlint-disable-next-line typescript/no-unsafe-type-assertion`.
 
 ## Testing
 
@@ -95,6 +101,13 @@ live in `workspaces.catalog` and are referenced as `"catalog:"`.
   config. Call the Worker through `exports.default.fetch()` from
   `cloudflare:workers`; reach inside a Durable Object with `runInDurableObject` from
   `cloudflare:test`.
+- A cross-script binding needs both of those bent. Cloudflare's vitest integration
+  requires an auxiliary worker to be pre-built JS and cannot read a wrangler config, so
+  `apps/remote-mcp/vitest.config.ts` adds a `miniflare.workers` entry — a plain-JS fake
+  `BotObject` that has no counterpart in `wrangler.jsonc`. `runInDurableObject` cannot
+  reach a Durable Object that lives in another script either, so the test drives it
+  through its RPC surface instead. Neither substitute proves the real binding; only a
+  `curl` after deploy proves cross-script reachability.
 
 ## Generated code
 

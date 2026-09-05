@@ -1,15 +1,17 @@
 # Rebuild conventions
 
-Rules harvested from review findings during the 13-wave rebuild
+Rules harvested from review findings during the 14-wave rebuild
 (`docs/superpowers/plans/2026-09-04-rebuild.md`). They apply to the whole repository,
 not only to rebuild work.
 
 ## Time-bound notes
 
 A note in repo docs that is only true during part of the rebuild must state the condition
-that makes it false, never a wave number, and the plan task that makes it false must carry
-the step that removes it. `until wave 6` was already wrong when it was written;
-`while no workspace declares a test script` would not have been.
+that makes it false, and the plan task that makes it false must carry the step that removes
+it. A wave number may sit alongside the condition as a navigational aid — what stays
+forbidden is a bare wave number standing in for the condition. `until wave 6` was already
+wrong when it was written; `while no workspace declares a test script` would not have been,
+and neither would `while no workspace declares a test script (wave 6)`.
 
 ## Registering a generated file
 
@@ -19,6 +21,12 @@ A newly committed generated file is registered in four places, not one:
   hand-written file in the same tree.
 - `oxlint.config.ts` and `oxfmt.config.ts` — `ignorePatterns`.
 - `.editorconfig` — generators do not follow the repo's whitespace rules.
+
+Check each of the four first: an existing glob (`apps/*/…`, `**/…`) may already cover the new
+path, in which case it needs no entry there. `apps/remote-mcp/worker-configuration.d.ts`
+needed none in wave 6 — the `apps/*` and `**/…` globs already in `.gitattributes`,
+`oxlint.config.ts`, `oxfmt.config.ts` and `.editorconfig` all already matched it. Add an entry
+only where the existing globs miss the path.
 
 Name the CI step that detects drift in it, and say whether that step compares the file body
 or only a header — `cf-typegen --check` compares only a header.
