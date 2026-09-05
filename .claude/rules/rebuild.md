@@ -91,3 +91,12 @@ Pointing a Worker's `main` at a build artifact makes `wrangler types` emit
 `skipLibCheck` hides the error and `cf-typegen --check` only compares a header hash, so no gate
 catches it. Commit a two-line `dist/entry.d.ts` re-exporting the source entry, negated in
 `.gitignore`.
+
+## Fixtures obtained through the code under test
+
+A test that obtains its fixture *through* the code under test cannot pin what that code chose.
+`apps/remote-mcp`'s health test reached the fake Durable Object via `botStub()` — the same
+function the route calls — so renaming the instance moved both together and every test stayed
+green, and the post-deploy `curl` could not catch it either because the real `status()` returns
+the same body for every instance. Derive the fixture independently: state the identifier once in
+the test and once in the implementation, so a divergence fails.
