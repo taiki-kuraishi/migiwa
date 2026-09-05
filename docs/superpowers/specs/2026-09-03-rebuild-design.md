@@ -177,10 +177,14 @@ promise chain も再入ガードも持たない。async が残るのは `connect
   READY / RESUMED / GUILD_CREATE / GUILD_DELETE / PRESENCE_UPDATE / VOICE_STATE_UPDATE 以外の `t` は
   検証せず `seq` だけ進める。
 - **例外**: ハンドラ全体を `try/catch` で包む。失敗は件数に数えてログに出し、ソケットは閉じない。
-- 定数(`GatewayOpcodes`、`GatewayCloseCodes`、`GatewayIntentBits`)と payload 型
-  (`GatewayReceivePayload` の `t` による discriminated union、`GatewayIdentify` / `GatewayResume`
-  / `GatewayHeartbeat`)は `discord-api-types/v10` から取る。手書きするのは封筒ガード、close code
-  の分類、backoff、heartbeat 状態機械だけ。
+- payload 型(`GatewayReceivePayload` の `t` による discriminated union、`GatewayIdentify` /
+  `GatewayResume` / `GatewayHeartbeat`)は `discord-api-types/v10` から `import type` で取る。
+  値(`GatewayOpcodes`、`GatewayCloseCodes`、`GatewayIntentBits`、`GatewayDispatchEvents`)は
+  `packages/gateway` だけが `discord-api-types/gateway/v10` サブパスから import し、apps は
+  `@migiwa/gateway` の再エクスポートを使う。top-level の `v10` barrel からの値 import は
+  `@cloudflare/vitest-plugin` の CJS interop で `undefined` になる(wave 4 で実測。機構は
+  `.claude/rules/rebuild.md`)。手書きするのは封筒ガード、close code の分類、backoff、heartbeat
+  状態機械だけ。
 
 ### 5.5 heartbeat と alarm
 
@@ -337,10 +341,19 @@ presence 行は guild ごとに重複する、必ず `LIMIT` を付ける。
 
 ### 7.3 read-only の担保(`BotObject.query(sql)`)
 
-- コメントと空白を除いた先頭が `SELECT` / `WITH` / `EXPLAIN` のいずれかであること。2 文目(`;` の
-  後に何かある)は拒否。`PRAGMA` と `ATTACH` は拒否。SQLite の `SELECT` は書き込めないので、これで
-  十分。ガードは `packages/db` の純関数 `ensureReadOnly(sql): Result<string, NotReadOnlySql>`(D12)。
-  `query()` は RPC 境界なので `Err` を `throw` に戻し、MCP ツール側が `isError` の応答にする。
+- **第 1 層(純関数)**: `packages/db` の `ensureReadOnly(sql): Result<string, NotReadOnlySql>`(D12)。
+  コメントと空白を除いた先頭が `SELECT` / `WITH` / `EXPLAIN` のいずれかであること。2 文目(`;` の
+  後に何かある)は拒否。`PRAGMA` / `ATTACH` と、書き込み動詞(`INSERT` / `UPDATE` / `DELETE` /
+  `REPLACE` / `DROP` / `ALTER` / `CREATE` / `VACUUM` / `DETACH` / `REINDEX` / `SAVEPOINT` / `RELEASE`)を
+  識別子境界付きで文全体から拒否する。`WITH` は SQLite の `insert-stmt` / `update-stmt` /
+  `delete-stmt` の先頭にも置けるので、先頭キーワードだけでは read-only を保証しない
+  (2026-09-05 のセキュリティレビューで `WITH x AS (SELECT 1) DELETE FROM guilds` が旧ガードを通り
+  実際に全行を消すことを実測)。`EXPLAIN` は VDBE プログラムを返すだけで実行しないので安全。
+- **第 2 層(構造的)**: `BotObject.query()` は第 1 層を通った文を `ctx.storage.transactionSync` の中で
+  実行してカーソルを読み切り、`cursor.rowsWritten > 0` なら throw してロールバックする。正規表現の
+  完全性に依存せず、書き込みは構造的に残らない。`SqlStorage` には read-only モードも authorizer も
+  無く、`PRAGMA query_only` は第 1 層が禁止しているので、DO で使える強制層はこの 2 つだけ。
+- `query()` は RPC 境界なので `Err` と throw を `Error` として返し、MCP ツール側が `isError` の応答にする。
 - 行は `ctx.storage.sql.exec()` のカーソルから読み、10,000 行で打ち切る。応答は
   `{ columns, rows, rows_read, truncated }`。
 - 実行時間の上限は DO の CPU 制限のみ。
