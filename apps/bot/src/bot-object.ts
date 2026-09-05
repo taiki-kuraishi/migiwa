@@ -21,7 +21,7 @@ export class BotObject extends DurableObject {
     void ctx.blockConcurrencyWhile(async () => migrate(this.db, migrations));
   }
 
-  // The gateway client arrives in wave 7; until then the bot is honestly "stopped".
+  // While no gateway client exists yet (wave 8), the bot is honestly "stopped".
   // oxlint-disable-next-line class-methods-use-this -- DO RPC dispatches to instance methods only.
   public async status(): Promise<StatusReport> {
     return stoppedStatus();
