@@ -9,7 +9,7 @@
   },
   "scripts": {
     "generate:migration": "drizzle-kit generate",
-    "test": "bun test",
+    "test": "vp run bun-test",
     "test:migration": "drizzle-kit migrate --config drizzle.config.sqlite.ts",
     "type-check": "ttsc --noEmit"
   },

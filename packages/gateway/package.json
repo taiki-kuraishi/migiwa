@@ -7,7 +7,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "test": "bun test",
+    "test": "vp run bun-test",
     "type-check": "ttsc --noEmit"
   },
   "dependencies": {
