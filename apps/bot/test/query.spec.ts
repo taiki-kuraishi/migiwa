@@ -28,7 +28,7 @@ test("query rejects anything that is not a single read-only statement", async ()
   await expect(
     botStub(env).query("INSERT INTO guilds (guild_id, name, first_seen_at) VALUES ('g', 'n', 0)"),
   ).rejects.toThrow(/SELECT/);
-  await expect(botStub(env).query("SELECT 1; SELECT 2")).rejects.toThrow(/SELECT/);
+  await expect(botStub(env).query("SELECT 1; SELECT 2")).rejects.toThrow(/only one statement/);
 });
 
 test("query stops at 10,000 rows and says so", async () => {
@@ -41,7 +41,7 @@ test("query stops at 10,000 rows and says so", async () => {
 
 test("query rejects a write hidden behind a WITH clause", async () => {
   await expect(botStub(env).query("WITH x AS (SELECT 1) DELETE FROM guilds")).rejects.toThrow(
-    /SELECT/,
+    /`delete`/,
   );
 });
 

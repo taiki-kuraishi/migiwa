@@ -73,8 +73,18 @@ describe("ensureReadOnly", () => {
     expect(reasonOf("SELECT updated_at FROM guilds")).toBeNull();
   });
 
-  test("the error message names what is allowed", () => {
+  test("the not_a_query message names what is allowed", () => {
     const error = ensureReadOnly("DROP TABLE x").match({ ok: () => null, err: (e) => e });
+    expect(error?.reason).toBe("not_a_query");
     expect(error?.message).toContain("SELECT / WITH / EXPLAIN");
+  });
+
+  test("the forbidden_keyword message names the matched keyword", () => {
+    const error = ensureReadOnly("WITH x AS (SELECT 1) DELETE FROM guilds").match({
+      ok: () => null,
+      err: (e) => e,
+    });
+    expect(error?.reason).toBe("forbidden_keyword");
+    expect(error?.message).toContain("`delete`");
   });
 });

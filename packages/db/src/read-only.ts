@@ -23,13 +23,8 @@ const LEADING_NOISE = /^(?:\s+|--[^\n]*(?:\n|$)|\/\*[\s\S]*?\*\/)+/,
   // Identifier boundaries keep `updated_at`, `end_reason` or 'GUILD_DELETE' from matching.
   WRITE_VERB =
     /(?<![a-z0-9_])(?:insert|update|delete|replace|drop|alter|create|vacuum|detach|reindex|savepoint|release)(?![a-z0-9_])/i,
-  refuse = (reason: NotReadOnlyReason): Result<never, NotReadOnlySql> =>
-    Result.err(
-      new NotReadOnlySql({
-        reason,
-        message: `only a single SELECT / WITH / EXPLAIN statement is allowed (${reason})`,
-      }),
-    );
+  refuse = (reason: NotReadOnlyReason, message: string): Result<never, NotReadOnlySql> =>
+    Result.err(new NotReadOnlySql({ reason, message }));
 
 // First read-only layer for BotObject.query() (spec §7.3), a pure text check. Why each leading
 // Keyword is allowed: SELECT cannot write; EXPLAIN only returns the VDBE program; WITH is
@@ -39,15 +34,24 @@ const LEADING_NOISE = /^(?:\s+|--[^\n]*(?:\n|$)|\/\*[\s\S]*?\*\/)+/,
 // That still writes. Ok carries the statement without its trailing `;`.
 export function ensureReadOnly(sql: string): Result<string, NotReadOnlySql> {
   const body = sql.replace(LEADING_NOISE, "").trim(),
-    statement = body.replace(/;\s*$/, "");
+    statement = body.replace(/;\s*$/, ""),
+    forbiddenMatch = FORBIDDEN.exec(statement) ?? WRITE_VERB.exec(statement);
   if (!READ_ONLY_HEAD.test(body)) {
-    return refuse("not_a_query");
+    return refuse("not_a_query", "only a single SELECT / WITH / EXPLAIN statement is allowed");
   }
   if (statement.includes(";")) {
-    return refuse("multiple_statements");
+    return refuse(
+      "multiple_statements",
+      "only one statement is allowed; remove the `;` (a `;` inside a string literal is refused too)",
+    );
   }
-  if (FORBIDDEN.test(statement) || WRITE_VERB.test(statement)) {
-    return refuse("forbidden_keyword");
+  if (forbiddenMatch) {
+    const keyword = forbiddenMatch[0].toLowerCase();
+    return refuse(
+      "forbidden_keyword",
+      `the keyword \`${keyword}\` is not allowed anywhere in a query, even inside a string ` +
+        `literal such as 'Update Squad'`,
+    );
   }
   return Result.ok(statement);
 }
