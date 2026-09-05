@@ -319,7 +319,9 @@ v1 の規模では無関係。
 ### 7.1 認証
 
 `/health` 以外の全ルートは `Authorization: Bearer <API_TOKEN>` 必須、定数時間比較。無い・違う →
-401。v1 は token 1 本で rate limit なし。
+401。ヘッダが `Bearer <token>` の文法を満たさない(malformed)→ 400(RFC 6750 の `invalid_request`。
+Hono の `bearerAuth` の挙動)。認証は deny-by-default: middleware は `*` に付け `/health` だけ除外する
+ので、後から足したルートが無認証で公開されることはない。v1 は token 1 本で rate limit なし。
 
 ### 7.2 `POST /mcp`
 
@@ -331,7 +333,8 @@ v1 の規模では無関係。
 定型メトリクスのツールが増えないようにする。設計の要点は「LLM が親切なテーブルに対して SQL を
 書く」ことにある。
 
-ツールの description は `packages/mcp` の純関数 `buildDescription(tables)` で生成する。`tables`
+ツールの description は `packages/mcp` の純関数 `buildDescription(tables)` で生成する(wave 14 まで
+はテーブル名の羅列だけの暫定版。全列・規約入りの本実装と `sqlite_master` とのズレ検査は wave 14)。`tables`
 は DO の `schema()` RPC が `sqlite_master` から返す(`sqlite_%`, `__drizzle_%`, `_cf_%` を prefix で
 除外)。description が全テーブル・全列に触れていることをテストで確認する。description に含める
 内容: テーブルの意味と `end_reason` の値、時刻は Unix ms(`datetime(started_at / 1000, 'unixepoch')`)、
@@ -350,7 +353,10 @@ presence 行は guild ごとに重複する、必ず `LIMIT` を付ける。
   (2026-09-05 のセキュリティレビューで `WITH x AS (SELECT 1) DELETE FROM guilds` が旧ガードを通り
   実際に全行を消すことを実測)。`EXPLAIN` は VDBE プログラムを返すだけで実行しないので安全。
 - **第 2 層(構造的)**: `BotObject.query()` は第 1 層を通った文を `ctx.storage.transactionSync` の中で
-  実行してカーソルを読み切り、`cursor.rowsWritten > 0` なら throw してロールバックする。正規表現の
+  実行してカーソルを 10,000 行まで読み(それ以上は読み切らない。この打ち切りがクエリの唯一の CPU
+  上限。`RETURNING` 付きの書き込みは最初の行を返す前に `rowsWritten` が立ち、行を返さない書き込みは
+  ループの前に終わるので、打ち切っても第 2 層は第 1 層から独立している)、`cursor.rowsWritten > 0`
+  なら throw してロールバックする。正規表現の
   完全性に依存せず、書き込みは構造的に残らない。`SqlStorage` には read-only モードも authorizer も
   無く、`PRAGMA query_only` は第 1 層が禁止しているので、DO で使える強制層はこの 2 つだけ。
 - `query()` は RPC 境界なので `Err` と throw を `Error` として返し、MCP ツール側が `isError` の応答にする。
@@ -468,4 +474,5 @@ deploy は **Cloudflare Workers Builds**(ダッシュボードの GitHub 連携)
 | guild 数 2,500 以上の bot は sharding が必要 | `GET /gateway/bot` の時点で `fatal("sharding_required")`。v1 のスコープ外 |
 | Discord Developer Policy はユーザー間の関係性のプロファイリングを禁止 | 「誰が誰と一緒だったか」系の機能は作らない。user × guild 単位の presence / voice / activity のみ |
 | Drizzle の DO ドライバが若い(#4322、#4558) | 同期トランザクションのみ、stable バージョン、migration 検証は `wrangler dev` |
+| MCP の `query` と Gateway の heartbeat が同じ DO を共有する。`readOnlyExec` は同期で `transactionSync` の中を回るので、重いクエリ(`randomblob(1e8)`、終了条件の無い再帰 CTE など。第 1 層も第 2 層も通る)は実行中 DO のイベントループを止め、alarm による heartbeat を遅らせてゾンビ判定 → 再接続を起こし得る(wave 7 の code review で指摘。2026-09-05) | v1 は spec §7.3 のとおり DO の CPU 制限を唯一の上限とし、呼び出し元は作者の MCP クライアント 1 つなので許容する。wave 9 の 24h PoC で重いクエリを意図的に投げて `reconnects_24h` への影響を計測し、影響が出るなら `rows_read` の上限かクエリの CPU 予算を §7.3 に足す |
 | 同期の `message` ハンドラが重くなり後続イベントが遅れる | セッション化は open 行 1〜数行との比較で O(log n)。GUILD_CREATE の突き合わせだけが guild 全体を舐めるが、IDENTIFY 直後にしか来ない |
