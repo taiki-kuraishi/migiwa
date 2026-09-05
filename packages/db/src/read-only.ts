@@ -17,7 +17,7 @@ const LEADING_NOISE = /^(?:\s+|--[^\n]*(?:\n|$)|\/\*[\s\S]*?\*\/)+/,
   // `\b` treats `_` as a word character, so `\bpragma\b` would miss `pragma_table_info(...)`.
   // That is a real SQLite table-valued function that leaks PRAGMA data through a plain SELECT.
   // Excluding only letters and digits (not `_`) from the adjacency check catches it too.
-  FORBIDDEN = /(?<![a-z0-9])(?:pragma|attach)(?![a-z0-9])/i,
+  FORBIDDEN = /(?<![a-z0-9])(?:pragma|attach|load_extension)(?![a-z0-9])/i,
   // SQLite lets a with-clause open insert / update / delete statements too, so the leading
   // Keyword proves nothing for WITH: any write verb anywhere in the statement is refused.
   // Identifier boundaries keep `updated_at`, `end_reason` or 'GUILD_DELETE' from matching.

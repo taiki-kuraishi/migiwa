@@ -33,12 +33,13 @@ describe("ensureReadOnly", () => {
     expect(reasonOf("SELECTX 1")).toBe("not_a_query");
   });
 
-  test("rejects PRAGMA and ATTACH anywhere", () => {
+  test("rejects PRAGMA, ATTACH and load_extension anywhere", () => {
     expect(reasonOf("SELECT 1 FROM pragma_table_info('guilds')")).toBe("forbidden_keyword");
     expect(reasonOf("PRAGMA table_info(guilds)")).toBe("not_a_query");
     expect(reasonOf("WITH x AS (SELECT 1) SELECT * FROM x; ATTACH 'a' AS b")).toBe(
       "multiple_statements",
     );
+    expect(reasonOf("SELECT load_extension('/x.so')")).toBe("forbidden_keyword");
   });
 
   // ATTACH itself is a standalone statement (not usable inside a WITH/SELECT), so a real
