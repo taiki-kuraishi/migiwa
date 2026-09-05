@@ -29,6 +29,8 @@ export class BotObject extends DurableObject {
     return [{ name: "guilds", sql: "CREATE TABLE guilds (guild_id text PRIMARY KEY, name text)" }];
   }
 
+  // Unlike the real BotObject, this fake never runs ensureReadOnly: the HTTP-level refusal
+  // Path is not covered here, only in apps/bot/test/query.spec.ts.
   // oxlint-disable-next-line class-methods-use-this -- fixed fixture, no instance state needed.
   async query(sql) {
     if (sql !== "SELECT 1") {
