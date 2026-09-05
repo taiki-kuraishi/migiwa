@@ -9,8 +9,9 @@
   "durable_objects": {
     "bindings": [{ "name": "BOT", "class_name": "BotObject", "script_name": "migiwa-bot" }],
   },
-  // API_TOKEN arrives with the /mcp route (wave 7).
-  "secrets": { "required": [] },
+  // Bearer token for POST /mcp (wave 7, spec §7.1). Required: a deploy without it set fails,
+  // so set it with `wrangler secret put API_TOKEN` before the next deploy.
+  "secrets": { "required": ["API_TOKEN"] },
   "observability": { "enabled": true },
   "workers_dev": true,
   "preview_urls": false,

@@ -6,6 +6,7 @@ export default defineConfig({
     cloudflareTest({
       wrangler: { configPath: "./wrangler.jsonc" },
       miniflare: {
+        bindings: { API_TOKEN: "test-token" },
         // The real BotObject lives in apps/bot.
         // Auxiliary workers must be pre-built JS and cannot read a wrangler config.
         // So tests bind `script_name: "migiwa-bot"` to a plain-JS fake with the same RPC surface.

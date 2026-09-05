@@ -8,6 +8,7 @@
     ],
     "catalog": {
       "@cloudflare/vitest-plugin": "1.1.2",
+      "@hono/mcp": "0.3.2",
       "@libsql/client": "0.17.4",
       "@modelcontextprotocol/sdk": "1.30.0",
       "@ttsc/unplugin": "0.28.5",

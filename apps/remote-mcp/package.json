@@ -11,11 +11,14 @@
     "type-check": "ttsc --noEmit"
   },
   "dependencies": {
+    "@hono/mcp": "catalog:",
     "@migiwa/gateway": "workspace:*",
+    "@migiwa/mcp": "workspace:*",
     "hono": "catalog:"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "catalog:",
+    "@modelcontextprotocol/sdk": "catalog:",
     "ttsc": "catalog:",
     "vitest": "catalog:",
     "wrangler": "catalog:"

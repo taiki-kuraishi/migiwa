@@ -18,10 +18,17 @@ export interface StatusReport {
   identify_remaining: number | null;
 }
 
+// A single SQLite column value (matches workerd's SqlStorageValue), spelled out rather than
+// Imported: this package carries no dependency on Cloudflare's ambient Workers types.
+// `unknown` does not work here — Workers RPC's structured-clone type check requires every
+// Member of a cross-DO-boundary return type to resolve to a known serializable shape, and
+// `unknown` doesn't, which collapses BotObject.query()'s inferred stub type to `never`.
+export type SqlColumnValue = string | number | null | ArrayBuffer;
+
 // What BotObject.query() returns (spec §7.3).
 export interface QueryResult {
   columns: string[];
-  rows: unknown[][];
+  rows: SqlColumnValue[][];
   rows_read: number;
   truncated: boolean;
 }
