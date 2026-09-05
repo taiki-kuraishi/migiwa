@@ -177,10 +177,14 @@ promise chain も再入ガードも持たない。async が残るのは `connect
   READY / RESUMED / GUILD_CREATE / GUILD_DELETE / PRESENCE_UPDATE / VOICE_STATE_UPDATE 以外の `t` は
   検証せず `seq` だけ進める。
 - **例外**: ハンドラ全体を `try/catch` で包む。失敗は件数に数えてログに出し、ソケットは閉じない。
-- 定数(`GatewayOpcodes`、`GatewayCloseCodes`、`GatewayIntentBits`)と payload 型
-  (`GatewayReceivePayload` の `t` による discriminated union、`GatewayIdentify` / `GatewayResume`
-  / `GatewayHeartbeat`)は `discord-api-types/v10` から取る。手書きするのは封筒ガード、close code
-  の分類、backoff、heartbeat 状態機械だけ。
+- payload 型(`GatewayReceivePayload` の `t` による discriminated union、`GatewayIdentify` /
+  `GatewayResume` / `GatewayHeartbeat`)は `discord-api-types/v10` から `import type` で取る。
+  値(`GatewayOpcodes`、`GatewayCloseCodes`、`GatewayIntentBits`、`GatewayDispatchEvents`)は
+  `packages/gateway` だけが `discord-api-types/gateway/v10` サブパスから import し、apps は
+  `@migiwa/gateway` の再エクスポートを使う。top-level の `v10` barrel からの値 import は
+  `@cloudflare/vitest-plugin` の CJS interop で `undefined` になる(wave 4 で実測。機構は
+  `.claude/rules/rebuild.md`)。手書きするのは封筒ガード、close code の分類、backoff、heartbeat
+  状態機械だけ。
 
 ### 5.5 heartbeat と alarm
 
