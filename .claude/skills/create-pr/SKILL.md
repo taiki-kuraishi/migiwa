@@ -6,9 +6,8 @@ description: Open a pull request for this repo following its conventions — a g
 > **Rebuild in progress.** Until `docs/superpowers/plans/2026-09-04-rebuild.md` lands, branches
 > are `rebuild-w<N>` cut from the previous wave's branch, and PRs are opened with
 > `gh pr create --base <previous branch>`. `gh stack` and the `feat/<slug>` naming below do not
-> apply. Do not run `bunx vp run -r ...` while the repo has no workspaces — use the
-> non-recursive `bunx vp run ...` forms instead. The gitmoji title format and the PR template
-> body below still apply. See the plan's Global Constraints for authority.
+> apply. The gitmoji title format and the PR template body below still apply. See the plan's
+> Global Constraints for authority.
 
 # Create a PR (migiwa)
 
@@ -43,7 +42,7 @@ bunx vp run oxlint --deny-warnings
 bunx vp run oxfmt --check
 bunx vp run type-check
 bunx vp run -r type-check
-bunx vp run -r test
+bunx vp run -r test  # not yet meaningful: no workspace declares a `test` script until wave 6
 bun run knip
 ```
 
