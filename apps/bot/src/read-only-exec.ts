@@ -6,8 +6,11 @@ const MAX_ROWS = 10_000;
 // Second read-only layer (spec §7.3): whatever the text guard in @migiwa/db missed, a statement
 // That wrote rows is rolled back here. `rowsWritten` is SQLite's own count, so this does not
 // Depend on parsing SQL correctly — it would have caught the WITH-hides-a-write bypass without
-// Knowing SQLite's grammar. The cursor is drained inside the transaction so the count is final
-// Before the check, and throwing inside `transactionSync` rolls the transaction back.
+// Knowing SQLite's grammar. The `break` at MAX_ROWS is deliberately not a full drain: it is the
+// Only CPU bound a query has. That is safe because layer 2 does not depend on layer 1 draining
+// The cursor: a write statement that returns rows (`… RETURNING`) sets `rowsWritten >= 1` before
+// Its first row is yielded, and one that returns none finishes the loop before it starts either
+// Way. Throwing inside `transactionSync` rolls the transaction back.
 export function readOnlyExec(storage: DurableObjectStorage, statement: string): QueryResult {
   return storage.transactionSync(() => {
     const cursor = storage.sql.exec(statement),
