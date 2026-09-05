@@ -1,5 +1,5 @@
 {
-  "name": "@migiwa/gateway",
+  "name": "@migiwa/mcp",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,12 +11,11 @@
     "type-check": "ttsc --noEmit"
   },
   "dependencies": {
-    "better-result": "catalog:",
-    "discord-api-types": "catalog:",
-    "typia": "catalog:"
+    "@migiwa/gateway": "workspace:*",
+    "@modelcontextprotocol/sdk": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
-    "@ttsc/unplugin": "catalog:",
     "@types/bun": "catalog:",
     "ttsc": "catalog:"
   },

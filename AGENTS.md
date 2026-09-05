@@ -107,7 +107,9 @@ live in `workspaces.catalog` and are referenced as `"catalog:"`.
   `BotObject` that has no counterpart in `wrangler.jsonc`. `runInDurableObject` cannot
   reach a Durable Object that lives in another script either, so the test drives it
   through its RPC surface instead. Neither substitute proves the real binding; only a
-  `curl` after deploy proves cross-script reachability.
+  `curl` after deploy proves cross-script reachability. `apps/remote-mcp/vitest.config.ts`
+  also supplies `bindings: { API_TOKEN: "test-token" }`, since `wrangler.jsonc` declares it
+  as a required secret, which vitest cannot read.
 
 ## Generated code
 
