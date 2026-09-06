@@ -48,7 +48,7 @@ import {
   withStatus,
   writeGateway,
 } from "./gateway-state";
-import { log } from "./log";
+import { describeError, log } from "./log";
 import { readOnlyExec } from "./read-only-exec";
 
 // A connect() that has not produced a HELLO within this window is treated as stuck.
@@ -148,7 +148,7 @@ export class BotObject extends DurableObject {
       }
       this.scheduleAlarm(Date.now());
     } catch (error) {
-      log("alarm_error", { message: error instanceof Error ? error.message : String(error) });
+      log("alarm_error", { message: describeError(error) });
       await this.ctx.storage.setAlarm(Date.now() + FALLBACK_ALARM_MS);
     }
   }
@@ -286,7 +286,7 @@ export class BotObject extends DurableObject {
       }
       this.handleFrame(parsed.value, Date.now());
     } catch (error) {
-      log("message_error", { message: error instanceof Error ? error.message : String(error) });
+      log("message_error", { message: describeError(error) });
     }
   }
 
@@ -419,13 +419,9 @@ export class BotObject extends DurableObject {
 
   // Closing with 1000/1001 tells Discord the client is done, so it discards the session; the
   // RESUME that follows then fails with op 9 (`d: false`) (spec §5.5) — every close meant to
-  // Precede a RESUME must use RECONNECT_CLOSE_CODE instead. Today doConnect() is the only
-  // Caller; a later task adds reconnectNow() (the op 7 Reconnect path, expected to be the most
-  // Frequent reconnect during the 24-hour soak) and onInvalidSession() as further callers, and
-  // Each of those must route through here too — which is exactly what makes a wrong close code
-  // Here so easy to trip over. Until the mock validates close codes, which the wave that
-  // Rebuilds it as a Durable Object adds, a regression here has no test in this suite; only
-  // The 24-hour soak would catch it.
+  // Precede a RESUME must use RECONNECT_CLOSE_CODE instead. Until the mock validates close
+  // Codes, which the wave that rebuilds it as a Durable Object adds, a regression here has no
+  // Test in this suite; only the 24-hour soak would catch it.
   private dropSocket(): void {
     const { socket } = this;
     this.socket = null;
@@ -465,14 +461,8 @@ export class BotObject extends DurableObject {
   }
 
   // One alarm for every deadline: the earliest of the next heartbeat and the reconnect.
-  //
-  // This filter must use `Number.isFinite(at)`, not `typeof at === "number"`.
-  // `HELLO.d.heartbeat_interval` sits outside the envelope guard (which checks only the
-  // Envelope's `op`/`s`/`t`, never `d`), so a missing field there can leave
-  // `heartbeatOnHello()`'s `nextDueAt` as `NaN`. `typeof NaN === "number"` is `true`, so a
-  // `typeof` check would let NaN through into `ctx.storage.setAlarm()`, which throws on it.
-  // That throw is swallowed by `onMessage()`'s try/catch, so the failure is silent: no alarm
-  // Is scheduled again and the object sits idle until the next cron tick notices.
+  // Number.isFinite(), not `typeof at === "number"`, keeps a NaN nextDueAt (typia already
+  // Validates heartbeat_interval, but defense in depth) out of setAlarm(), which throws on it.
   private scheduleAlarm(now: number): void {
     const store = readGateway(this.ctx.storage.kv, now),
       deadlines = [this.heartbeat?.nextDueAt, store.backoff_until].filter((at): at is number =>

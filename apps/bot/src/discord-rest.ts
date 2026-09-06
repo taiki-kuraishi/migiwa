@@ -4,10 +4,9 @@ import { GATEWAY_BOT_ENDPOINT, validateGatewayBotInfo } from "@migiwa/gateway";
 import { Result } from "better-result";
 
 import { GatewayBotFailed, UpgradeFailed } from "./gateway-errors";
+import { describeError } from "./log";
 
-const USER_AGENT = "DiscordBot (https://github.com/taiki-kuraishi/migiwa, 1.0.0)",
-  describeError = (error: unknown): string =>
-    error instanceof Error ? error.message : String(error);
+const USER_AGENT = "DiscordBot (https://github.com/taiki-kuraishi/migiwa, 1.0.0)";
 
 // GET /gateway/bot: where to connect, how many shards Discord wants, and today's IDENTIFY
 // Budget (spec §5.3). A 401 is the token being wrong; the caller treats it as fatal.
