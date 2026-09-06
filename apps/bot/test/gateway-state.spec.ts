@@ -6,6 +6,7 @@ import { expect, test } from "vitest";
 import { botStub } from "../src/bot-stub";
 import {
   clearSession,
+  GATEWAY_KEY,
   initialGatewayStore,
   readGateway,
   recordReconnect,
@@ -66,6 +67,20 @@ test("toStatusReport counts reconnects within 24 hours", () => {
     guild_count: 3,
     reconnects_24h: 2,
     identify_remaining: null,
+  });
+});
+
+test("readGateway fills in defaults missing from a partial stored object", async () => {
+  await runInDurableObject(botStub(env), (_instance, state) => {
+    // Simulates an object stored before a field existed on GatewayStore: kv.get() would return
+    // It as `undefined`, not the field's default, if readGateway() fell back to
+    // `initialGatewayStore()` only when nothing was stored at all.
+    state.storage.kv.put(GATEWAY_KEY, { session_id: "sess" });
+    const store = readGateway(state.storage.kv, 42);
+    expect(store.session_id).toBe("sess");
+    expect(store.status).toBe("stopped");
+    expect(store.status_since).toBe(42);
+    expect(store.reconnects).toEqual([]);
   });
 });
 

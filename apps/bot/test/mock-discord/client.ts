@@ -33,15 +33,3 @@ const mock = (env as unknown as { MOCK: Fetcher }).MOCK,
   };
 
 export { mockDiscord };
-
-export async function waitFor(check: () => Promise<boolean>, timeoutMs = 5000): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  // oxlint-disable-next-line no-await-in-loop -- polling is the point here.
-  while (!(await check())) {
-    if (Date.now() > deadline) {
-      throw new Error("waitFor: timed out");
-    }
-    // oxlint-disable-next-line no-await-in-loop -- polling is the point here.
-    await new Promise((resolve) => setTimeout(resolve, 25));
-  }
-}
