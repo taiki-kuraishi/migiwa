@@ -1,10 +1,11 @@
 import { INTENTS } from "@migiwa/gateway";
-import { evictDurableObject, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
+import { runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { afterEach, expect, test } from "vitest";
 
 import { botStub } from "../src/bot-stub";
-import { GATEWAY_KEY, readGateway } from "../src/gateway-state";
+import { readGateway } from "../src/gateway-state";
+import { resetBot } from "./mock-discord/cleanup";
 import { mockDiscord, waitFor } from "./mock-discord/client";
 
 const state = async () => {
@@ -19,33 +20,7 @@ async function connectAndWait(): Promise<void> {
   await waitFor(async () => (await state()) === "connected");
 }
 
-// `BotObject.socket` is private to the class, but reaching into the live instance to close it
-// Directly (below) is the only way to end the test's connection: it runs inside the DO's own
-// Persistent actor context, same as a later RPC to that instance would, so it can touch a
-// Socket a previous RPC opened — the exact pattern doConnect()'s own dropSocket() relies on.
-interface WithSocket {
-  socket: WebSocket | null;
-}
-
-afterEach(async () => {
-  await mockDiscord.reset();
-  // BotObject's socket is a plain (non-hibernatable) WebSocket that only its own DO instance
-  // May touch (see mock-discord/worker.js for the same restriction from the other side).
-  // Left open, evictDurableObject() below hangs draining a subrequest that never completes.
-  // This close runs its own onClose() handler, which reschedules an alarm — so it must happen
-  // Before the cleanup below, not after, or that reschedule would undo the cleanup.
-  await runInDurableObject(botStub(env), (instance) => {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test cleanup only, see WithSocket above.
-    (instance as unknown as WithSocket).socket?.close();
-  });
-  // A pending alarm would re-create the object after eviction and reconnect to a reset mock;
-  // A leftover session id would turn the next test's IDENTIFY into a RESUME.
-  await runInDurableObject(botStub(env), async (_instance, ctx) => {
-    ctx.storage.kv.delete(GATEWAY_KEY);
-    return ctx.storage.deleteAlarm();
-  });
-  await evictDurableObject(botStub(env));
-});
+afterEach(resetBot);
 
 test("ensureConnected identifies with the fixed intents and reaches connected", async () => {
   await connectAndWait();

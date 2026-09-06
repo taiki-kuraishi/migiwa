@@ -6,11 +6,14 @@ import {
   waitOnExecutionContext,
 } from "cloudflare:test";
 import { env } from "cloudflare:workers";
-import { expect, test } from "vitest";
+import { afterEach, expect, test } from "vitest";
 
 import { botStub } from "../src/bot-stub";
 import worker from "../src/entry";
 import { GATEWAY_KEY, readGateway } from "../src/gateway-state";
+import { resetBot } from "./mock-discord/cleanup";
+
+afterEach(resetBot);
 
 test("the cron tick reaches the Durable Object and completes", async () => {
   const controller = createScheduledController({ scheduledTime: new Date(), cron: "* * * * *" }),
