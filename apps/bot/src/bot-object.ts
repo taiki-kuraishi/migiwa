@@ -127,6 +127,8 @@ export class BotObject extends DurableObject {
   public override async alarm(): Promise<void> {
     try {
       const now = Date.now(),
+        // Read before maybeSendHeartbeat(), which may write last_heartbeat_at: safe only
+        // Because `store` below is read for backoff_until, a field that write never touches.
         store = readGateway(this.ctx.storage.kv, now);
       this.maybeSendHeartbeat(now);
       if (store.backoff_until !== null && store.backoff_until <= now) {
@@ -170,6 +172,9 @@ export class BotObject extends DurableObject {
   private async doConnect(): Promise<void> {
     const { kv } = this.ctx.storage,
       now = Date.now(),
+      // Read before dropSocket(): safe only because dropSocket() never writes here itself — it
+      // Nulls this.socket first, so onClose()'s identity guard on the old socket's close event
+      // Bails out before it can call scheduleReconnect().
       store = readGateway(kv, now),
       reconnected = withStatus(recordReconnect(store, now), "connecting", null, now);
     this.dropSocket();
@@ -326,8 +331,9 @@ export class BotObject extends DurableObject {
     writeGateway(kv, { ...readGateway(kv, now), last_ack_at: now });
   }
 
-  // Every dispatch advances seq inside one transaction (spec §6.4); wave 12 adds the ingest
-  // To the same transaction. `dispatch` is null when validateDispatch() rejected `d`.
+  // Every dispatch advances seq inside one transaction (spec §6.4); it stays limited to gateway
+  // KV state until a later task starts writing sessionizer rows into this same transaction
+  // (wave 12 in the plan). `dispatch` is null when validateDispatch() rejected `d`.
   private onDispatch(seq: number, dispatch: ValidatedDispatch | null, now: number): void {
     const { kv } = this.ctx.storage;
     this.ctx.storage.transactionSync(() => {

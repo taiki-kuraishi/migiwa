@@ -66,6 +66,10 @@ test("a second ensureConnected on a healthy socket is a no-op", async () => {
   const frames = await mockDiscord.received(),
     identifies = frames.filter((frame) => frame.op === 2);
   expect(identifies).toHaveLength(1);
+  // A regression into a full reconnect would not fail received() alone: openGateway() clears it
+  // On every new socket, so a fresh connection also carries exactly one IDENTIFY too.
+  // Its connections() count below is what actually distinguishes a no-op from a reconnect.
+  expect(await mockDiscord.connections()).toBe(1);
 });
 
 test("the alarm sends a heartbeat with the last seq and records the ACK", async () => {

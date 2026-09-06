@@ -11,34 +11,21 @@ const DEFAULTS = {
     remaining: 999,
   },
   // Workers forbids touching a WebSocket from a request other than the one that accepted it
-  // (the accepting request here is the gateway upgrade `fetch()` in openGateway() below). A
-  // Control call like /send or /reset arrives as its own separate request, so a native call on
-  // A stale `server` throws "Cannot perform I/O on behalf of a different request." The listener
-  // Registered inside openGateway() calls this same function from the accepting request's own
-  // Context, where it never throws; closeServer() below needs the identical guard for the same
-  // Reason.
-  send = (frame) => {
-    try {
-      server?.send(JSON.stringify(frame));
-    } catch {
-      // See the comment above `send`.
-    }
-  },
-  closeServer = (code, reason) => {
-    try {
-      server?.close(code, reason);
-    } catch {
-      // See the comment above `send`.
-    }
-  };
+  // (the accepting request here is the gateway upgrade fetch() in openGateway() below). This
+  // Function is only ever called from openGateway()'s own message listener, which runs inside
+  // That same accepting request's context, so it never hits that restriction — unlike a
+  // Control-plane call (see /send and /close below, which refuse instead of trying).
+  send = (frame) => server?.send(JSON.stringify(frame));
 
 let options = { ...DEFAULTS },
   server = null, // Server side of the current socket.
-  received = []; // Frames the bot sent over the current socket.
+  received = [], // Frames the bot sent over the current socket.
+  connections = 0; // How many times openGateway() has accepted a socket since the last /reset.
 
 function openGateway() {
   const pair = new WebSocketPair(),
     [client, socket] = Object.values(pair);
+  connections += 1;
   socket.accept();
   server = socket;
   received = [];
@@ -73,16 +60,14 @@ function openGateway() {
   return new Response(null, { status: 101, webSocket: client });
 }
 
-async function closeFromRequest(request) {
-  const { code, reason } = await request.json();
-  closeServer(code, reason);
-  return new Response(null, { status: 204 });
-}
-
 function resetMock() {
-  closeServer(1000, "reset");
+  // Not closing `server` here: a stateless Worker cannot close a WebSocket accepted during a
+  // Different request (see the comment on send() above), so this control call has no way to do
+  // It. The socket is the caller's to close first — gateway.spec.ts's afterEach does that
+  // DO-side, before it calls /reset.
   server = null;
   received = [];
+  connections = 0;
   options = { ...DEFAULTS };
   return new Response(null, { status: 204 });
 }
@@ -92,16 +77,25 @@ async function control(url, request) {
     case "/received": {
       return Response.json(received);
     }
+    case "/connections": {
+      return Response.json(connections);
+    }
     case "/options": {
       options = { ...options, ...(await request.json()) };
       return new Response(null, { status: 204 });
     }
-    case "/send": {
-      send(await request.json());
-      return new Response(null, { status: 204 });
-    }
+    case "/send":
     case "/close": {
-      return closeFromRequest(request);
+      // A stateless Worker cannot touch a WebSocket accepted during a different request (see
+      // The comment on send() above), so this endpoint cannot push a frame or simulate a
+      // Discord-initiated close — it would need the mock to become a Durable Object (so this
+      // Call ran in the same persistent context openGateway() did), or the frame to be
+      // Scripted from inside openGateway()'s own message listener instead. Failing loudly here
+      // Beats a 204 that quietly did nothing, which is what wave 9's server-pushed op 7 / op 9
+      // Tests would otherwise time out chasing.
+      return new Response(`${url.pathname} cannot act on a socket from a separate request`, {
+        status: 501,
+      });
     }
     case "/reset": {
       return resetMock();

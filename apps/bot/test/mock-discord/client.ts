@@ -21,9 +21,14 @@ const mock = (env as unknown as { MOCK: Fetcher }).MOCK,
       const response = await call("/received");
       return response.json();
     },
+    // How many times openGateway() has accepted a socket since the last reset() — a full
+    // Reconnect bumps this even though received() alone cannot tell a reconnect from a no-op
+    // (openGateway() always clears `received`).
+    connections: async (): Promise<number> => {
+      const response = await call("/connections");
+      return response.json();
+    },
     options: async (patch: Record<string, unknown>): Promise<Response> => call("/options", patch),
-    send: async (frame: Frame): Promise<Response> => call("/send", frame),
-    close: async (code: number, reason = ""): Promise<Response> => call("/close", { code, reason }),
     reset: async (): Promise<Response> => call("/reset"),
   };
 
