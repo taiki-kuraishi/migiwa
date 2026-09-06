@@ -12,6 +12,7 @@ import { createDatabaseClient, ensureReadOnly, guilds } from "@migiwa/db";
 import migrations from "@migiwa/db/migrations";
 import {
   backoffDelayMs,
+  decideOnClose,
   FATAL_RETRY_MS,
   gatewayHttpUrl,
   GatewayOpcodes,
@@ -40,6 +41,7 @@ import type { GatewayStore } from "./gateway-state";
 import { fetchGatewayBot, openGatewaySocket } from "./discord-rest";
 import { IdentifyBudgetExhausted, ShardingRequired } from "./gateway-errors";
 import {
+  clearSession,
   readGateway,
   recordReconnect,
   toStatusReport,
@@ -395,6 +397,23 @@ export class BotObject extends DurableObject {
     this.socket = null;
     this.heartbeat = null;
     log("socket_closed", { code, reason });
+    this.applyCloseDecision(code, reason);
+  }
+
+  // Split out of onClose() to stay under the statement-count limit. Spec §5.7: a fatal code
+  // Needs a human, an IDENTIFY code forbids RESUME, everything else resumes. RESUME itself
+  // (op 7, op 9) is wave 9; this only routes the three outcomes.
+  private applyCloseDecision(code: number | undefined, reason: string): void {
+    const now = Date.now(),
+      { kv } = this.ctx.storage,
+      decision = decideOnClose(code);
+    if (decision.kind === "fatal") {
+      this.fail(readGateway(kv, now), decision.reason, now);
+      return;
+    }
+    if (decision.kind === "identify") {
+      writeGateway(kv, clearSession(readGateway(kv, now)));
+    }
     this.scheduleReconnect(reason === "" ? `close_${code ?? "unknown"}` : reason);
   }
 
