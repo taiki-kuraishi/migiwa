@@ -129,9 +129,19 @@ export class BotObject extends DurableObject {
       const now = Date.now(),
         // Read before maybeSendHeartbeat(), which may write last_heartbeat_at: safe only
         // Because `store` below is read for backoff_until, a field that write never touches.
-        store = readGateway(this.ctx.storage.kv, now);
+        store = readGateway(this.ctx.storage.kv, now),
+        open = this.socket?.readyState === WebSocket.READY_STATE_OPEN;
       this.maybeSendHeartbeat(now);
-      if (store.backoff_until !== null && store.backoff_until <= now) {
+      // The `connecting`/`open` guards are belt-and-braces alongside doConnect() clearing
+      // `backoff_until` when a connect attempt starts (see there): even a `store` read before
+      // That write lands must not restart a connect that is already running or already holds
+      // An open socket.
+      if (
+        store.backoff_until !== null &&
+        store.backoff_until <= now &&
+        this.connecting === null &&
+        !open
+      ) {
         await this.beginConnect();
       }
       this.scheduleAlarm(Date.now());
@@ -176,7 +186,15 @@ export class BotObject extends DurableObject {
       // Nulls this.socket first, so onClose()'s identity guard on the old socket's close event
       // Bails out before it can call scheduleReconnect().
       store = readGateway(kv, now),
-      reconnected = withStatus(recordReconnect(store, now), "connecting", null, now);
+      reconnected = {
+        ...withStatus(recordReconnect(store, now), "connecting", null, now),
+        // Clear the stale deadline so scheduleAlarm() cannot pick it as the earliest wake-up and
+        // Fire an alarm that tears this handshake down before HELLO arrives (`backoff_attempt`
+        // Survives so the next real failure keeps counting up). Between now and HELLO the alarm
+        // May have no deadline to schedule at all; ensureConnected()'s CONNECT_GRACE_MS window,
+        // Not the alarm, is what notices a connect() stuck that long.
+        backoff_until: null,
+      };
     this.dropSocket();
     writeGateway(kv, reconnected);
     await this.attemptConnect(kv, this.env.DISCORD_BOT_TOKEN);
