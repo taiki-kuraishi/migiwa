@@ -100,3 +100,22 @@ function the route calls — so renaming the instance moved both together and ev
 green, and the post-deploy `curl` could not catch it either because the real `status()` returns
 the same body for every instance. Derive the fixture independently: state the identifier once in
 the test and once in the implementation, so a divergence fails.
+
+## `bun test` tasks are never cached by vp
+
+vite-plus cannot see which files `bun test` reads, so a cached `test` task replays a stale
+result even after the tests changed (wave 7 shipped a security regression test that CI never
+ran). Every workspace whose tests run with `bun test` registers a `bun-test` task in
+`vite.config.ts` with caching disabled and points its `test` script at it.
+
+## Every SQL entry point goes through both read-only layers
+
+Any path that executes SQL supplied from outside the Worker (the MCP `query` tool today) calls
+`ensureReadOnly()` and then `readOnlyExec()`, never one without the other. The regex alone let
+`WITH … DELETE` through; the `rowsWritten` rollback alone would execute the write before undoing
+it. A new entry point that skips either layer is a security bug, not a shortcut.
+
+## Auth is deny-by-default in remote-mcp
+
+The bearer middleware is mounted on `*` and exceptions are listed by path (`/health` only).
+Do not mount it per route: a route added without the middleware would be public by default.
