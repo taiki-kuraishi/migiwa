@@ -137,9 +137,12 @@ DO の KV storage(`ctx.storage.kv`、同期 API)に置く。ユーザーの SQL 
 
 ### 5.2 `ensureConnected()`
 
-cron が毎分呼ぶ。ソケットが open で最終 heartbeat ACK が heartbeat 2 周期以内なら、または
-`backoff_until` が未来なら no-op。それ以外は `connect()` を実行する。RPC 名を `connect` にしない
-のは DO stub の `Fetcher.connect` と衝突するため。
+cron が毎分呼ぶ。次のどれかなら no-op、それ以外は `connect()` を実行する:
+heartbeat が追いついている(送った heartbeat に ACK があり、次の期限を 1 周期以上過ぎていない)、
+`backoff_until` が未来、接続の途中(`connect()` が進行中、または open したソケットがまだ HELLO を
+受けておらず `status_since` から 60 秒以内。cron の連打で接続中のソケットを捨てないための猶予。
+2026-09-06 に wave 8 の実装から追記)。RPC 名を `connect` にしないのは DO stub の `Fetcher.connect`
+と衝突するため。
 
 ### 5.3 `connect()`(唯一の async 経路)
 
