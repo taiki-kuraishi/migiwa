@@ -63,8 +63,9 @@ function openGateway() {
 function resetMock() {
   // Not closing `server` here: a stateless Worker cannot close a WebSocket accepted during a
   // Different request (see the comment on send() above), so this control call has no way to do
-  // It. The socket is the caller's to close first — gateway.spec.ts's afterEach does that
-  // DO-side, before it calls /reset.
+  // It. The socket is the caller's to close — gateway.spec.ts's afterEach does that DO-side,
+  // After this call returns, not before; nulling `server` here first just means that later
+  // Close's own listener (in openGateway() above) sees `server` already null and no-ops.
   server = null;
   received = [];
   connections = 0;
