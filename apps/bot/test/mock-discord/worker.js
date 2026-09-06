@@ -1,6 +1,12 @@
 // Fake Discord for apps/bot's tests: the REST endpoint GET /gateway/bot plus a scriptable
 // Gateway WebSocket. Module-level state is fine here: Miniflare keeps one isolate for this
 // Worker for the whole test run and the tests reset it between cases.
+//
+// What this mock accepts that the real Discord would reject (.claude/rules/rebuild.md "Mocks
+// That accept too much"): no Authorization check on GET /gateway/bot; no check of the upgrade
+// Request's `?v=10&encoding=json`; no fatal close code unless a test sets closeAfterIdentify;
+// READY with zero RTT unless a test sets readyDelayMs; and RESUME accepted regardless of the
+// Close code that preceded it — fixed when the mock becomes a Durable Object in wave 9.
 
 const DEFAULTS = {
     heartbeatInterval: 41_250,
@@ -9,13 +15,29 @@ const DEFAULTS = {
     resumeGatewayUrl: "wss://gateway-resume.discord.gg",
     gatewayBotStatus: 200,
     remaining: 999,
+    // 0 sends READY synchronously with IDENTIFY, hiding races a real handshake's RTT exposes.
+    readyDelayMs: 0,
+    // A close code to send instead of READY, simulating a fatal close right after IDENTIFY.
+    closeAfterIdentify: null,
   },
   // Workers forbids touching a WebSocket from a request other than the one that accepted it
   // (the accepting request here is the gateway upgrade fetch() in openGateway() below). This
   // Function is only ever called from openGateway()'s own message listener, which runs inside
   // That same accepting request's context, so it never hits that restriction — unlike a
   // Control-plane call (see /send and /close below, which refuse instead of trying).
-  send = (frame) => server?.send(JSON.stringify(frame));
+  send = (frame) => server?.send(JSON.stringify(frame)),
+  readyPayload = () => ({
+    op: 0,
+    s: 1,
+    t: "READY",
+    d: {
+      v: 10,
+      user: { id: "bot-1" },
+      session_id: options.sessionId,
+      resume_gateway_url: options.resumeGatewayUrl,
+      guilds: [],
+    },
+  });
 
 let options = { ...DEFAULTS },
   server = null, // Server side of the current socket.
@@ -33,18 +55,13 @@ function openGateway() {
     const frame = JSON.parse(event.data);
     received.push(frame);
     if (frame.op === 2) {
-      send({
-        op: 0,
-        s: 1,
-        t: "READY",
-        d: {
-          v: 10,
-          user: { id: "bot-1" },
-          session_id: options.sessionId,
-          resume_gateway_url: options.resumeGatewayUrl,
-          guilds: [],
-        },
-      });
+      if (options.closeAfterIdentify !== null) {
+        server?.close(options.closeAfterIdentify);
+      } else if (options.readyDelayMs > 0) {
+        setTimeout(() => send(readyPayload()), options.readyDelayMs);
+      } else {
+        send(readyPayload());
+      }
     } else if (frame.op === 6) {
       send({ op: 0, s: frame.d.seq + 1, t: "RESUMED", d: {} });
     } else if (frame.op === 1 && options.ackHeartbeats) {

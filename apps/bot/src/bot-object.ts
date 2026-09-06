@@ -423,9 +423,9 @@ export class BotObject extends DurableObject {
   // Caller; a later task adds reconnectNow() (the op 7 Reconnect path, expected to be the most
   // Frequent reconnect during the 24-hour soak) and onInvalidSession() as further callers, and
   // Each of those must route through here too — which is exactly what makes a wrong close code
-  // Here so easy to trip over. This wave's mock Discord accepts a RESUME regardless of the
-  // Close code that preceded it, so a regression here has no test in this suite; only the
-  // 24-hour soak would catch it.
+  // Here so easy to trip over. Until the mock validates close codes, which the wave that
+  // Rebuilds it as a Durable Object adds, a regression here has no test in this suite; only
+  // The 24-hour soak would catch it.
   private dropSocket(): void {
     const { socket } = this;
     this.socket = null;
