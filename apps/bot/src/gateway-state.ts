@@ -48,8 +48,10 @@ export function initialGatewayStore(now: number): GatewayStore {
   };
 }
 
+// Spread merge, not `?? initialGatewayStore(now)`: a field added to GatewayStore after an
+// Object was already stored must still get its default, not `undefined`.
 export function readGateway(kv: SyncKvStorage, now: number): GatewayStore {
-  return kv.get<GatewayStore>(GATEWAY_KEY) ?? initialGatewayStore(now);
+  return { ...initialGatewayStore(now), ...kv.get<Partial<GatewayStore>>(GATEWAY_KEY) };
 }
 
 export function writeGateway(kv: SyncKvStorage, store: GatewayStore): void {
