@@ -7,7 +7,26 @@ export default defineConfig({
   // That ordering lets ttsc rewrite typia's `validate<T>()` calls before workerd bundles sources.
   plugins: [
     ttsc(),
-    cloudflareTest({ main: "./src/entry.ts", wrangler: { configPath: "./wrangler.jsonc" } }),
+    cloudflareTest({
+      main: "./src/entry.ts",
+      wrangler: { configPath: "./wrangler.jsonc" },
+      miniflare: {
+        bindings: { DISCORD_BOT_TOKEN: "test-token" },
+        // Every outbound fetch() of the Worker under test (GET /gateway/bot, the WebSocket
+        // Upgrade) lands on the mock Discord below, so BotObject runs its production code path.
+        outboundService: "mock-discord",
+        // Tests steer the mock through this binding.
+        serviceBindings: { MOCK: "mock-discord" },
+        workers: [
+          {
+            name: "mock-discord",
+            modules: true,
+            scriptPath: "./test/mock-discord/worker.js",
+            compatibilityDate: "2026-08-01",
+          },
+        ],
+      },
+    }),
   ],
   test: {
     // Workerd start-up on a 1 vCPU ubuntu-slim runner does not fit vitest's 5 s default.

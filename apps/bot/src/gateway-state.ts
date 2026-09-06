@@ -5,8 +5,8 @@ const GATEWAY_KEY = "gateway",
 
 export { GATEWAY_KEY };
 
-// Everything the gateway client must survive a restart with (spec §5.1). Lives in
-// Ctx.storage.kv, never in SQL, so the MCP query tool cannot reach the session id.
+// Everything the gateway client must survive a restart with (spec §5.1). Lives in ctx.storage.kv,
+// Never in SQL, so the MCP query tool cannot reach the session id.
 export interface GatewayStore {
   session_id: string | null;
   seq: number | null;
@@ -56,8 +56,8 @@ export function writeGateway(kv: SyncKvStorage, store: GatewayStore): void {
   kv.put(GATEWAY_KEY, store);
 }
 
-// `disconnected_at` is what GUILD_CREATE reconciliation uses as ended_at for users that went
-// Away while the bot was down (spec §6.3), so it is stamped exactly when "connected" ends.
+// `disconnected_at` is what GUILD_CREATE reconciliation uses as ended_at for users that went away
+// While the bot was down (spec §6.3), so it is stamped exactly when "connected" ends.
 export function withStatus(
   store: GatewayStore,
   status: GatewayState,
