@@ -49,14 +49,3 @@ export interface BotRpc {
   schema: () => Promise<TableInfo[]>;
   query: (sql: string) => Promise<QueryResult>;
 }
-
-export const stoppedStatus = (): StatusReport => ({
-  state: "stopped",
-  since: 0,
-  reason: null,
-  last_event_at: null,
-  seq: null,
-  guild_count: 0,
-  reconnects_24h: 0,
-  identify_remaining: null,
-});

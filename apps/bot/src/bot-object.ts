@@ -1,12 +1,13 @@
 import type { DatabaseClient } from "@migiwa/db";
 import type { QueryResult, StatusReport, TableInfo } from "@migiwa/gateway";
 
-import { createDatabaseClient, ensureReadOnly } from "@migiwa/db";
+import { createDatabaseClient, ensureReadOnly, guilds } from "@migiwa/db";
 import migrations from "@migiwa/db/migrations";
-import { stoppedStatus } from "@migiwa/gateway";
 import { DurableObject } from "cloudflare:workers";
+import { count, eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/durable-sqlite/migrator";
 
+import { readGateway, toStatusReport } from "./gateway-state";
 import { readOnlyExec } from "./read-only-exec";
 
 export class BotObject extends DurableObject {
@@ -21,16 +22,21 @@ export class BotObject extends DurableObject {
     void ctx.blockConcurrencyWhile(async () => migrate(this.db, migrations));
   }
 
-  // While no gateway client exists yet (wave 8), the bot is honestly "stopped".
-  // oxlint-disable-next-line class-methods-use-this -- DO RPC dispatches to instance methods only.
   public async status(): Promise<StatusReport> {
-    return stoppedStatus();
+    const now = Date.now();
+    return toStatusReport(readGateway(this.ctx.storage.kv, now), this.guildCount(), now);
   }
 
   // Called by the cron every minute (spec §5.2). Not named `connect`: that collides with
   // Fetcher.connect on the stub.
   public async ensureConnected(): Promise<StatusReport> {
     return this.status();
+  }
+
+  private guildCount(): number {
+    return (
+      this.db.select({ n: count() }).from(guilds).where(eq(guilds.available, true)).get()?.n ?? 0
+    );
   }
 
   // Feeds the MCP tool description (spec §7.2): user tables only, without SQLite's own tables,

@@ -3,7 +3,7 @@ export * from "./close";
 export * from "./envelope";
 export * from "./heartbeat";
 export * from "./payloads";
-export * from "./rpc";
+export type * from "./rpc";
 export type * from "./slices";
 export * from "./url";
 export * from "./validate";
