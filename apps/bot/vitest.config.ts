@@ -23,6 +23,9 @@ export default defineConfig({
             modules: true,
             scriptPath: "./test/mock-discord/worker.js",
             compatibilityDate: "2026-08-01",
+            // No useSQLite: the mock keeps its state (server socket, received frames, options)
+            // In instance fields, not storage (see the file header in worker.js).
+            durableObjects: { GATEWAY: { className: "MockGateway" } },
           },
         ],
       },
