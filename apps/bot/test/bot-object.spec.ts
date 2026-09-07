@@ -42,10 +42,10 @@ test("re-constructing the object after eviction does not re-run migrations", asy
   });
 });
 
-test("status reports stopped until the gateway client exists", async () => {
+test("status reports stopped on a fresh object", async () => {
   const report = await botStub(env).status();
   expect(report.state).toBe("stopped");
-  expect(await botStub(env).ensureConnected()).toEqual(report);
+  expect(report.guild_count).toBe(0);
 });
 
 test("the open-session unique index holds inside a synchronous transaction", async () => {

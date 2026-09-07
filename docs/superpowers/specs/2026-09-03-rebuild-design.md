@@ -68,7 +68,7 @@ D1 の制御プレーン、Discord OAuth サインイン、暗号化した token
 
 | # | 決定 | 旧 spec からの変更 |
 |---|---|---|
-| D1 | **Gateway クライアントは SQLite-backed Durable Object(`BotObject`、bot ごとに 1 つ)の中で TypeScript で動かす。** v1 のインスタンスは `idFromName("default")` の 1 つ。Cloudflare Containers で Go バイナリを動かす案は、DO の outbound WebSocket が信頼できないと分かった場合のフォールバックとして残す。 | なし |
+| D1 | **Gateway クライアントは SQLite-backed Durable Object(`BotObject`、bot ごとに 1 つ)の中で TypeScript で動かす。** v1 のインスタンスは `idFromName("bot")` の 1 つ(2026-09-07 に `"default"` から変更。§6.6)。Cloudflare Containers で Go バイナリを動かす案は、DO の outbound WebSocket が信頼できないと分かった場合のフォールバックとして残す。 | なし |
 | D2 | **保存先は同じ DO の SQLite**(bot ごとに 1 データベース)。Turso / D1 / Analytics Engine / R2 SQL / Hyperdrive は旧 spec の理由で採らない。 | なし |
 | D3 | **取り込み時にセッション化する。** `presence_sessions` / `activity_sessions` / `voice_sessions` を保存し、生イベントは短期保持のみ。クエリ時にウィンドウ関数でセッションを組み立てるのが roppoh を遅くした原因。 | なし |
 | D4 | **スキーマとクエリは Drizzle ORM**(`drizzle-orm/durable-sqlite`)。migration は `drizzle-kit generate`、各 DO が起動時に自分へ適用、CI で drift 検査。アプリ側のクエリも生 SQL ではなく Drizzle のクエリビルダーで書く。例外はユーザー SQL の実行(§7.3)と `sqlite_master` の参照だけで、これらは `ctx.storage.sql.exec()` を直接使う。 | クエリビルダーの使用を明示 |
@@ -107,7 +107,9 @@ Discord Gateway (wss://gateway.discord.gg/?v=10&encoding=json)
 └──────────────────────────────────────────────────────┘
 ```
 
-- DO インスタンスはちょうど 1 つ、`idFromName("default")`。`locationHint` は指定しない。
+- DO インスタンスはちょうど 1 つ、`idFromName("bot")`。`locationHint` は指定しない。`"default"` は
+  作り直し前の skeleton が作ったオブジェクトの名前で、その drizzle 履歴が新しい migration と両立しない
+  ため使わない(§6.6)。
 - bot Worker の HTTP ルートは `GET /health` だけ。それ以外の入口は cron trigger と DO の RPC。
 
 ### 「接続は常時、プロセスは常時ではない」
@@ -137,9 +139,12 @@ DO の KV storage(`ctx.storage.kv`、同期 API)に置く。ユーザーの SQL 
 
 ### 5.2 `ensureConnected()`
 
-cron が毎分呼ぶ。ソケットが open で最終 heartbeat ACK が heartbeat 2 周期以内なら、または
-`backoff_until` が未来なら no-op。それ以外は `connect()` を実行する。RPC 名を `connect` にしない
-のは DO stub の `Fetcher.connect` と衝突するため。
+cron が毎分呼ぶ。次のどれかなら no-op、それ以外は `connect()` を実行する:
+heartbeat が追いついている(送った heartbeat に ACK があり、次の期限を 1 周期以上過ぎていない)、
+`backoff_until` が未来、接続の途中(`connect()` が進行中、または open したソケットがまだ HELLO を
+受けておらず `status_since` から 60 秒以内。cron の連打で接続中のソケットを捨てないための猶予。
+2026-09-06 に wave 8 の実装から追記)。RPC 名を `connect` にしないのは DO stub の `Fetcher.connect`
+と衝突するため。
 
 ### 5.3 `connect()`(唯一の async 経路)
 
@@ -313,6 +318,14 @@ v1 の規模では無関係。
   `rules: [{ type: "Text", globs: ["**/*.sql"], fallthrough: true }]` が要る。
 - migration の検証は素の `wrangler dev` で行い、`@cloudflare/vite-plugin` 経由にしない
   (drizzle-orm #4558)。Drizzle Studio と `drizzle-kit push` は DO 非対応。
+- **DO のストレージは deploy をまたいで生き続ける。** migration を再生成して名前 / ハッシュが変わると、
+  既存の DO では drizzle が「未適用」とみなして `CREATE TABLE` を再実行し、constructor が `Rollback` を
+  投げ続ける(2026-09-07 に本番で発生: skeleton 時代の `20260830102542_init` が残っていた)。
+  `deleted_classes` で namespace を wipe する案は、binding(remote-mcp の cross-script binding を含む)
+  が参照している class を Cloudflare が削除させない(API error 10061)ので使えない。対処は
+  **オブジェクトの名前を変える**(`"default"` → `"bot"`、wave 8 で実施): 新しい名前は空のストレージから
+  始まり、旧オブジェクトは skeleton の空テーブルを持ったまま二度と参照されない。本番にセッション
+  データが入ったあとは migration の再生成を禁止し、追加 migration だけを積む。
 
 ## 7. MCP Worker(`migiwa-remote-mcp`)
 

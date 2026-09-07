@@ -110,6 +110,10 @@ live in `workspaces.catalog` and are referenced as `"catalog:"`.
   `curl` after deploy proves cross-script reachability. `apps/remote-mcp/vitest.config.ts`
   also supplies `bindings: { API_TOKEN: "test-token" }`, since `wrangler.jsonc` declares it
   as a required secret, which vitest cannot read.
+- `apps/bot`'s `vitest.config.ts` also declares things its `wrangler.jsonc` does not: an
+  auxiliary `mock-discord` worker reached through Miniflare's `outboundService` and a `MOCK`
+  service binding. It also supplies `bindings: { DISCORD_BOT_TOKEN: "test-token" }`, since
+  `wrangler.jsonc` declares that as a required secret too.
 
 ## Generated code
 

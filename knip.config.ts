@@ -17,7 +17,11 @@ export default {
     // `cloudflare:test` as a dependency literally named `cloudflare`.
     // `ignoreExportsUsedInFile`: constants and types exported for tests or for readability.
     // Those consumed in the same file are not dead code.
+    // The mock Discord worker is loaded by vitest.config.ts through a Miniflare scriptPath.
+    // Knip cannot follow that, so it is listed as an entry by hand (mirrors apps/remote-mcp
+    // Below).
     "apps/bot": {
+      entry: ["test/mock-discord/worker.js"],
       ignoreDependencies: ["cloudflare"],
       ignoreExportsUsedInFile: true,
     },
