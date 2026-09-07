@@ -78,4 +78,12 @@ describe("reduceVoice", () => {
     ]);
     expect(reduceVoice([row], "g1", state("c1"), NOW)).toEqual([]);
   });
+
+  // B1: an open row for the same user in a different guild must not be mistaken for this guild's row.
+  test("open row for this user in another guild: opens instead of updating that row", () => {
+    const other = voiceRow({ guild_id: "g2" });
+    expect(reduceVoice([other], "g1", state("c1"), NOW)).toMatchObject([
+      { kind: "open", table: "voice", row: { guild_id: "g1", channel_id: "c1" } },
+    ]);
+  });
 });

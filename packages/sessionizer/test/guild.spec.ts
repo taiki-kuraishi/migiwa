@@ -2,6 +2,8 @@ import type { GuildCreateSlice } from "@migiwa/gateway";
 
 import { describe, expect, test } from "bun:test";
 
+import type { OpenRows, SessionOp } from "../src/types";
+
 import { reduceGuildCreate, reduceGuildDelete } from "../src/guild";
 import { activityRow, presenceRow, voiceRow } from "./fixtures";
 
@@ -15,13 +17,10 @@ const NOW = 9000,
     voice_states: [],
     ...overrides,
   }),
-  presence = (id: string, status = "online") => ({
-    user: { id },
-    guild_id: "g1",
-    status,
-    activities: [],
-  }),
-  voice = (user_id: string, channel_id: string) => ({
+  presence = (id: string, status = "online"): GuildCreateSlice["presences"][number] =>
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- status is a plain string here, but PresenceSlice.status is Discord's closed status enum
+    ({ user: { id }, status, activities: [] }) as GuildCreateSlice["presences"][number],
+  voice = (user_id: string, channel_id: string): GuildCreateSlice["voice_states"][number] => ({
     user_id,
     channel_id,
     session_id: `vs-${user_id}`,
@@ -31,17 +30,27 @@ const NOW = 9000,
     deaf: false,
     self_video: false,
     suppress: false,
-  });
+  }),
+  // Turns a first pass's "open" ops into the OpenRows a second pass over the same GUILD_CREATE would see (idempotency check, B4). Only meaningful starting from an empty OpenRows, where reduceGuildCreate never emits "close" or "update".
+  applyOpenOps = (ops: SessionOp[]): OpenRows => {
+    const open: OpenRows = { presence: [], activity: [], voice: [] };
+    for (const op of ops) {
+      if (op.kind === "open" && op.table === "presence") {
+        open.presence.push(presenceRow(op.row));
+      } else if (op.kind === "open" && op.table === "activity") {
+        open.activity.push(activityRow(op.row));
+      } else if (op.kind === "open" && op.table === "voice") {
+        open.voice.push(voiceRow(op.row));
+      }
+    }
+    return open;
+  };
 
 describe("reduceGuildCreate", () => {
   test("upserts the guild and opens sessions from the snapshot", () => {
     const { guild: row, ops } = reduceGuildCreate(
       { presence: [], activity: [], voice: [] },
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- presence()/voice() return loosely-typed test fixtures narrower than GuildCreateSlice's presences/voice_states element types
-      guild({
-        presences: [presence("u1")],
-        voice_states: [voice("u1", "c1")],
-      } as Partial<GuildCreateSlice>),
+      guild({ large: true, presences: [presence("u1")], voice_states: [voice("u1", "c1")] }),
       NOW,
       null,
     );
@@ -49,7 +58,7 @@ describe("reduceGuildCreate", () => {
       guild_id: "g1",
       name: "Guild",
       member_count: 100,
-      large: false,
+      large: true,
       available: true,
       last_snapshot_at: NOW,
     });
@@ -69,8 +78,7 @@ describe("reduceGuildCreate", () => {
           activity: [goneActivity],
           voice: [goneVoice],
         },
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- presence() returns a loosely-typed test fixture narrower than GuildCreateSlice's presences element type
-        guild({ presences: [presence("u1")] } as Partial<GuildCreateSlice>),
+        guild({ presences: [presence("u1")] }),
         NOW,
         null,
       );
@@ -104,8 +112,7 @@ describe("reduceGuildCreate", () => {
     const gone = presenceRow({ user_id: "u2" }),
       { ops } = reduceGuildCreate(
         { presence: [gone], activity: [], voice: [] },
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- presence() returns a loosely-typed test fixture narrower than GuildCreateSlice's presences element type
-        guild({ presences: [presence("u1")] } as Partial<GuildCreateSlice>),
+        guild({ presences: [presence("u1")] }),
         NOW,
         7000,
       );
@@ -116,6 +123,24 @@ describe("reduceGuildCreate", () => {
       table: "presence",
       id: gone.id,
       ended_at: 7000,
+      end_reason: "snapshot_missing",
+    });
+  });
+
+  // A1: disconnected_at can predate a row's own started_at; ended_at must clamp to started_at rather than precede it.
+  test("clamps ended_at to the row's started_at when disconnected_at predates it", () => {
+    const gone = presenceRow({ user_id: "u2", started_at: 5000 }),
+      { ops } = reduceGuildCreate(
+        { presence: [gone], activity: [], voice: [] },
+        guild({ presences: [presence("u1")] }),
+        NOW,
+        1000,
+      );
+    expect(ops).toContainEqual({
+      kind: "close",
+      table: "presence",
+      id: gone.id,
+      ended_at: 5000,
       end_reason: "snapshot_missing",
     });
   });
@@ -167,8 +192,7 @@ describe("reduceGuildCreate", () => {
     const staleVoice = voiceRow({ user_id: "u1" }),
       { ops } = reduceGuildCreate(
         { presence: [presenceRow({ user_id: "u1" })], activity: [], voice: [staleVoice] },
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- presence() returns a loosely-typed test fixture narrower than GuildCreateSlice's presences element type
-        guild({ presences: [presence("u1")] } as Partial<GuildCreateSlice>),
+        guild({ presences: [presence("u1")] }),
         NOW,
         null,
       );
@@ -184,7 +208,7 @@ describe("reduceGuildCreate", () => {
   });
 
   // The reconciliation loop must scope "missing from the snapshot" to this guild's own open rows.
-  // Spec §6.3: "この guild の open 行のうち、スナップショットに居ない user を close".
+  // Spec §6.3: only this guild's open rows that are missing from the snapshot close.
   // `reducePresenceStatus`/`reduceActivities`/`reduceVoice` already scope their own lookups by (guild_id, user_id) instead of trusting the caller to pre-filter `open`.
   test("does not touch another guild's open rows even though they are missing from this guild's snapshot", () => {
     const otherGuild = presenceRow({ guild_id: "g2", user_id: "u9" }),
@@ -195,6 +219,14 @@ describe("reduceGuildCreate", () => {
         null,
       );
     expect(ops).toEqual([]);
+  });
+
+  // Spec §6.4: reduce() compares against open rows, so replaying the same snapshot is a no-op.
+  test("applying the same GUILD_CREATE twice emits nothing the second time", () => {
+    const d = guild({ presences: [presence("u1")], voice_states: [voice("u2", "c1")] }),
+      first = reduceGuildCreate({ presence: [], activity: [], voice: [] }, d, NOW, null),
+      second = reduceGuildCreate(applyOpenOps(first.ops), d, NOW, null);
+    expect(second.ops).toEqual([]);
   });
 });
 
@@ -222,7 +254,7 @@ describe("reduceGuildDelete", () => {
     ]);
   });
 
-  // Spec §6.3, GUILD_DELETE: "この guild の open 行を全部 close".
+  // Spec §6.3, GUILD_DELETE: every one of this guild's open rows closes.
   // A different guild's open rows must survive this guild being removed, the same way `reduceGuildCreate`'s snapshot reconciliation only ever touches this guild's own rows.
   test("does not close another guild's open rows when this guild is removed", () => {
     const otherGuild = presenceRow({ guild_id: "g2", user_id: "u9" });
