@@ -32,8 +32,13 @@ interface ClosableRow {
   user_id: string;
 }
 
-// Shared by every "close this guild's open rows" reconciliation in this file: reduceGuildCreate's three snapshot_missing calls (a real keep-set) and reduceGuildDelete's three guild_removed calls (an empty keep-set, since nobody is kept). One function instead of two near-identical filter+map bodies living side by side.
-// Filters by `guild_id` itself instead of trusting the caller to have pre-scoped `open` — the same defense reducePresenceStatus/reduceActivities/reduceVoice already apply to their own (guild_id, user_id) lookups (spec §6.3: both GUILD_CREATE and GUILD_DELETE only touch "この guild の open 行").
+// `closeGone()` is the private helper behind every "close this guild's open rows" step in this file.
+// `reduceGuildCreate` calls it for presence/activity/voice snapshot_missing closes, each with a keep-set of the users the snapshot still lists.
+// `reduceGuildDelete` calls it for presence/activity/voice guild_removed closes, with an empty keep-set, since nobody is kept.
+// That's one function instead of two near-identical filter+map bodies living side by side.
+// Filters by `guild_id` itself instead of trusting the caller to have pre-scoped `open`.
+// `reducePresenceStatus`/`reduceActivities`/`reduceVoice` already apply that same defense to their own (guild_id, user_id) lookups.
+// Spec §6.3: both GUILD_CREATE and GUILD_DELETE only touch "この guild の open 行".
 function closeGone(
   rows: ClosableRow[],
   guild_id: string,
@@ -78,10 +83,24 @@ export function reduceGuildCreate(
     ),
     closed = [
       ...(reconcilePresence
-        ? closeGone(open.presence, d.id, presentUsers, "presence", ended_at, "snapshot_missing")
-        : []),
-      ...(reconcilePresence
-        ? closeGone(open.activity, d.id, presentUsers, "activity", ended_at, "snapshot_missing")
+        ? [
+            ...closeGone(
+              open.presence,
+              d.id,
+              presentUsers,
+              "presence",
+              ended_at,
+              "snapshot_missing",
+            ),
+            ...closeGone(
+              open.activity,
+              d.id,
+              presentUsers,
+              "activity",
+              ended_at,
+              "snapshot_missing",
+            ),
+          ]
         : []),
       ...closeGone(open.voice, d.id, voiceUsers, "voice", ended_at, "snapshot_missing"),
     ];

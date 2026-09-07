@@ -5,7 +5,7 @@ import { reducePresenceStatus } from "./presence";
 import { reduceVoice } from "./voice";
 
 // The entry point for the dispatches reduce() handles (spec §6.3).
-// GUILD_CREATE / GUILD_DELETE go through reduceGuildCreate() / reduceGuildDelete() (Task 19) instead, since they also return guild upserts.
+// GUILD_CREATE / GUILD_DELETE go through reduceGuildCreate() / reduceGuildDelete() (Task 19) instead: neither is an IngestEvent variant, and reduceGuildCreate also returns a guild upsert alongside its SessionOp[].
 // oxlint-disable-next-line typescript/consistent-return -- the switch is exhaustive over `IngestEvent`; a missing case is TS2366, so no default and no trailing return.
 export function reduce(open: OpenRows, event: IngestEvent, received_at: number): SessionOp[] {
   switch (event.t) {
