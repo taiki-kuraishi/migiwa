@@ -109,6 +109,7 @@ describe("reduceGuildCreate", () => {
         NOW,
         7000,
       );
+    expect(ops).toHaveLength(2);
     expect(ops[0]).toMatchObject({ kind: "open", table: "presence", row: { started_at: NOW } });
     expect(ops[1]).toEqual({
       kind: "close",
