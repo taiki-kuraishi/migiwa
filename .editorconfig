@@ -11,3 +11,16 @@ insert_final_newline = true
 
 [*.{md,markdown}]
 trim_trailing_whitespace = false
+
+# drizzle-kit's own generated output (see AGENTS.md "Generated code"); saving one of these
+# files here would rewrite drizzle's formatting and trip drizzle-ci.yml's drift check for
+# reasons that have nothing to do with drift.
+[packages/db/drizzle/**]
+trim_trailing_whitespace = false
+insert_final_newline = false
+
+# migrations.d.ts is the one hand-written file in that tree (see .gitattributes) and follows
+# the normal rules.
+[packages/db/drizzle/migrations.d.ts]
+trim_trailing_whitespace = true
+insert_final_newline = true
