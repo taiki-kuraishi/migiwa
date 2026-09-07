@@ -316,6 +316,12 @@ v1 の規模では無関係。
   `rules: [{ type: "Text", globs: ["**/*.sql"], fallthrough: true }]` が要る。
 - migration の検証は素の `wrangler dev` で行い、`@cloudflare/vite-plugin` 経由にしない
   (drizzle-orm #4558)。Drizzle Studio と `drizzle-kit push` は DO 非対応。
+- **DO のストレージは deploy をまたいで生き続ける。** migration を再生成して名前 / ハッシュが変わると、
+  既存の DO では drizzle が「未適用」とみなして `CREATE TABLE` を再実行し、constructor が `Rollback` を
+  投げ続ける(2026-09-07 に本番で発生: skeleton 時代の `20260830102542_init` が残っていた)。
+  データが無い開発中は `wrangler.jsonc` の `migrations` に `deleted_classes` → `new_sqlite_classes` の
+  2 段を足して namespace を wipe する(wave 8 で実施)。本番にセッションデータが入ったあとは migration
+  の再生成を禁止し、追加 migration だけを積む。
 
 ## 7. MCP Worker(`migiwa-remote-mcp`)
 
