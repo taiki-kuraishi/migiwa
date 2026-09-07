@@ -44,6 +44,8 @@ bunx vp run type-check
 bunx vp run -r type-check
 bunx vp run -r test
 bun run knip
+bun run --cwd apps/bot cf-typegen --check
+bun run --cwd apps/bot wrangler deploy --dry-run --outdir /tmp/bot-dist
 ```
 
 ## 5. Open the PR (stacked — this repo uses `gh stack`)

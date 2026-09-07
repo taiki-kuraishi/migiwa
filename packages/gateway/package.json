@@ -7,7 +7,15 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "test": "bun test",
     "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "better-result": "catalog:",
+    "discord-api-types": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:"
   },
   "peerDependencies": {
     "typescript": "catalog:"
