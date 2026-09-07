@@ -21,9 +21,9 @@ test("the cron tick reaches the Durable Object and completes", async () => {
   await expect(worker.scheduled(controller, env, ctx)).resolves.toBeUndefined();
   await waitOnExecutionContext(ctx);
   // Proves the tick actually reached the DO, not just that scheduled() resolved.
-  // The "default" object exists in BOT's namespace, and only that one.
+  // The "bot" object exists in BOT's namespace, and only that one.
   expect(Array.from(await listDurableObjectIds(env.BOT), String)).toEqual([
-    env.BOT.idFromName("default").toString(),
+    env.BOT.idFromName("bot").toString(),
   ]);
   // Proves ensureConnected() actually ran, not just that the DO woke up: it is what writes the
   // Gateway KV state this task adds. Wave 3 had no implementation writing it yet, so this test
