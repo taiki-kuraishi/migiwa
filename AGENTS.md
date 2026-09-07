@@ -54,6 +54,10 @@ referenced as `"catalog:"`.
   preserves RPC type inference). `HonoEnv` is defined here; routes/middlewares
   import it with `import type` (a value import creates a runtime cycle).
 - Naming: routes end in `Route`, middlewares in `Middleware`.
+- A Durable Object class lives in `src/<name>-object.ts` and is re-exported
+  from `entry.ts` by the app that defines it; every app that references the
+  object, including across a `script_name` binding, keeps its stub accessor —
+  the single home for `idFromName`/`idFromString` — in `src/<name>-stub.ts`.
 
 ## Testing
 
@@ -77,7 +81,7 @@ inside a generated directory is exempted back out with a `-linguist-generated`
 line in `.gitattributes`; it is the only kind of file in a generated tree that
 may be edited by hand. `drizzle-ci.yml`'s drift job is the only thing that
 catches a Drizzle schema change nobody regenerated, since the pre-commit hook
-does not run generators: after changing a schema under
+does not run Drizzle's `generate:migration`: after changing a schema under
 `packages/db/src/schemas/`, run the owning workspace's generate script
 (`bun run --cwd packages/db generate:migration`) and commit the generated
 migration alongside the schema change.
