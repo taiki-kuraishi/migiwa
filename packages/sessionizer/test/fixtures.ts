@@ -1,4 +1,5 @@
 import type { ActivitySession, PresenceSession, VoiceSession } from "@migiwa/db";
+import type { PresenceSlice } from "@migiwa/gateway";
 
 let nextId = 1;
 
@@ -67,4 +68,10 @@ export function voiceRow(overrides: Partial<VoiceSession> = {}): VoiceSession {
     suppress: false,
     ...overrides,
   };
+}
+
+// `status` is a raw string here, but PresenceSlice.status is Discord's PresenceUpdateReceiveStatus string enum; a literal string isn't assignable to it without a cast.
+export function presenceUpdate(overrides: Record<string, unknown> = {}): PresenceSlice {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test-only fixture shape, see comment above
+  return { user: { id: "u1" }, guild_id: "g1", status: "online", ...overrides } as PresenceSlice;
 }

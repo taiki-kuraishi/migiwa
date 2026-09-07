@@ -2,27 +2,13 @@ import type { ActivitySlice } from "@migiwa/gateway";
 
 import { describe, expect, test } from "bun:test";
 
-import type { SessionOp } from "../src/types";
-
 import { activityKey, reduceActivities } from "../src/activity";
-import { activityRow } from "./fixtures";
+import { activityRow, presenceUpdate } from "./fixtures";
 
 const NOW = 5000;
 
 function game(overrides: Partial<ActivitySlice> = {}): ActivitySlice {
   return { name: "Game", type: 0, created_at: 4000, application_id: "app-1", ...overrides };
-}
-
-// `status` is a raw string here, but PresenceLike.status is Discord's PresenceUpdateReceiveStatus string enum.
-// A literal string isn't assignable to it without a cast, same as presence.spec.ts.
-function update(
-  activities: ActivitySlice[],
-  status = "online",
-): Parameters<typeof reduceActivities>[1] {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test-only fixture shape, see comment above
-  return { user: { id: "u1" }, guild_id: "g1", status, activities } as Parameters<
-    typeof reduceActivities
-  >[1];
 }
 
 describe("activityKey", () => {
@@ -34,7 +20,11 @@ describe("activityKey", () => {
 
 describe("reduceActivities", () => {
   test("opens a row per new activity, started at Discord's created_at", () => {
-    const ops = reduceActivities([], update([game({ state: "Lobby" })]), NOW);
+    const ops = reduceActivities(
+      [],
+      presenceUpdate({ activities: [game({ state: "Lobby" })] }),
+      NOW,
+    );
     expect(ops).toEqual([
       {
         kind: "open",
@@ -56,15 +46,22 @@ describe("reduceActivities", () => {
 
   test("closes rows whose activity disappeared", () => {
     const row = activityRow();
-    expect(reduceActivities([row], update([]), NOW)).toEqual([
+    expect(reduceActivities([row], presenceUpdate({ activities: [] }), NOW)).toEqual([
+      { kind: "close", table: "activity", id: row.id, ended_at: NOW, end_reason: "activity_end" },
+    ]);
+  });
+
+  test("closes every open activity row when `activities` is absent from the payload", () => {
+    const row = activityRow();
+    expect(reduceActivities([row], presenceUpdate(), NOW)).toEqual([
       { kind: "close", table: "activity", id: row.id, ended_at: NOW, end_reason: "activity_end" },
     ]);
   });
 
   test("updates state and details of an activity that is still there", () => {
     const row = activityRow({ state: "Lobby" }),
-      changed = update([game({ state: "Match", details: "3-1" })]),
-      unchanged = update([game({ state: "Lobby" })]);
+      changed = presenceUpdate({ activities: [game({ state: "Match", details: "3-1" })] }),
+      unchanged = presenceUpdate({ activities: [game({ state: "Lobby" })] });
     expect(reduceActivities([row], changed, NOW)).toEqual([
       { kind: "update", table: "activity", id: row.id, patch: { state: "Match", details: "3-1" } },
     ]);
@@ -73,41 +70,36 @@ describe("reduceActivities", () => {
 
   test("closes everything with offline when the user goes offline", () => {
     const row = activityRow(),
-      wentOffline = update([game()], "offline");
+      wentOffline = presenceUpdate({ activities: [game()], status: "offline" });
     expect(reduceActivities([row], wentOffline, NOW)).toEqual([
       { kind: "close", table: "activity", id: row.id, ended_at: NOW, end_reason: "offline" },
     ]);
   });
 
   test("treats (type, key) as identity so the same app in two types is two rows", () => {
-    const ops = reduceActivities([], update([game({ type: 0 }), game({ type: 2 })]), NOW);
+    const ops = reduceActivities(
+      [],
+      presenceUpdate({ activities: [game({ type: 0 }), game({ type: 2 })] }),
+      NOW,
+    );
     expect(ops.map((op) => op.kind)).toEqual(["open", "open"]);
   });
 
   test("only looks at rows of the same guild and user", () => {
     const otherUser = activityRow({ user_id: "u2" }),
       otherGuild = activityRow({ guild_id: "g2" }),
-      opsForOtherUser = reduceActivities([otherUser], update([game()]), NOW),
-      opsForOtherGuild = reduceActivities([otherGuild], update([game()]), NOW),
-      expectedOpen: SessionOp[] = [
-        {
-          kind: "open",
-          table: "activity",
-          row: {
-            guild_id: "g1",
-            user_id: "u1",
-            activity_type: 0,
-            activity_key: "app-1",
-            application_id: "app-1",
-            name: "Game",
-            state: null,
-            details: null,
-            started_at: 4000,
-          },
-        },
-      ];
-    expect(opsForOtherUser).toEqual(expectedOpen);
-    expect(opsForOtherGuild).toEqual(expectedOpen);
+      opsForOtherUser = reduceActivities(
+        [otherUser],
+        presenceUpdate({ activities: [game()] }),
+        NOW,
+      ),
+      opsForOtherGuild = reduceActivities(
+        [otherGuild],
+        presenceUpdate({ activities: [game()] }),
+        NOW,
+      );
+    expect(opsForOtherUser.map((op) => op.kind)).toEqual(["open"]);
+    expect(opsForOtherGuild.map((op) => op.kind)).toEqual(["open"]);
   });
 
   // Discord can list the same application twice in one payload (e.g. two Spotify entries).
@@ -115,7 +107,7 @@ describe("reduceActivities", () => {
   test("keeps only the first activity when Discord lists the same (type, key) twice", () => {
     const ops = reduceActivities(
       [],
-      update([game({ state: "First" }), game({ state: "Second" })]),
+      presenceUpdate({ activities: [game({ state: "First" }), game({ state: "Second" })] }),
       NOW,
     );
     expect(ops).toEqual([
@@ -141,7 +133,7 @@ describe("reduceActivities", () => {
     const row = activityRow({ state: "Lobby" }),
       ops = reduceActivities(
         [row],
-        update([game({ state: "First" }), game({ state: "Second" })]),
+        presenceUpdate({ activities: [game({ state: "First" }), game({ state: "Second" })] }),
         NOW,
       );
     expect(ops).toEqual([

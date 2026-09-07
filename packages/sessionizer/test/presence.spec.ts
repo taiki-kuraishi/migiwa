@@ -1,20 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
 import { presenceStatus, reducePresenceStatus } from "../src/presence";
-import { presenceRow } from "./fixtures";
+import { presenceRow, presenceUpdate } from "./fixtures";
 
 const NOW = 5000;
-
-// The `extra` spread lets tests inject fields like `client_status` without widening PresenceLike itself; TS can't verify the merged literal against it, so the cast below stays asserted.
-function update(
-  status: string,
-  extra: Record<string, unknown> = {},
-): Parameters<typeof reducePresenceStatus>[1] {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test-only fixture shape, see comment above
-  return { user: { id: "u1" }, guild_id: "g1", status, ...extra } as Parameters<
-    typeof reducePresenceStatus
-  >[1];
-}
 
 describe("presenceStatus", () => {
   test("keeps online, idle and dnd; everything else is untracked (null)", () => {
@@ -31,7 +20,7 @@ describe("reducePresenceStatus", () => {
   test("opens a session when nothing is open and the user is online", () => {
     const ops = reducePresenceStatus(
       [],
-      update("online", { client_status: { desktop: "online", web: "idle" } }),
+      presenceUpdate({ status: "online", client_status: { desktop: "online", web: "idle" } }),
       NOW,
     );
     expect(ops).toEqual([
@@ -53,13 +42,17 @@ describe("reducePresenceStatus", () => {
 
   test("does nothing when the status is unchanged", () => {
     expect(
-      reducePresenceStatus([presenceRow({ status: "online" })], update("online"), NOW),
+      reducePresenceStatus(
+        [presenceRow({ status: "online" })],
+        presenceUpdate({ status: "online" }),
+        NOW,
+      ),
     ).toEqual([]);
   });
 
   test("closes and reopens on a status change", () => {
     const row = presenceRow({ status: "online" }),
-      ops = reducePresenceStatus([row], update("idle"), NOW);
+      ops = reducePresenceStatus([row], presenceUpdate({ status: "idle" }), NOW);
     expect(ops).toHaveLength(2);
     expect(ops[0]).toEqual({
       kind: "close",
@@ -77,20 +70,28 @@ describe("reducePresenceStatus", () => {
 
   test("closes with offline and opens nothing when the user goes offline", () => {
     const row = presenceRow({ status: "dnd" });
-    expect(reducePresenceStatus([row], update("offline"), NOW)).toEqual([
+    expect(reducePresenceStatus([row], presenceUpdate({ status: "offline" }), NOW)).toEqual([
       { kind: "close", table: "presence", id: row.id, ended_at: NOW, end_reason: "offline" },
     ]);
   });
 
   test("ignores offline for a user with no open session", () => {
-    expect(reducePresenceStatus([], update("offline"), NOW)).toEqual([]);
+    expect(reducePresenceStatus([], presenceUpdate({ status: "offline" }), NOW)).toEqual([]);
   });
 
   test("only looks at the row of the same guild and user", () => {
     const otherUser = presenceRow({ user_id: "u2", status: "online" }),
       otherGuild = presenceRow({ guild_id: "g2", status: "online" }),
-      opsForOtherUser = reducePresenceStatus([otherUser], update("online"), NOW),
-      opsForOtherGuild = reducePresenceStatus([otherGuild], update("online"), NOW);
+      opsForOtherUser = reducePresenceStatus(
+        [otherUser],
+        presenceUpdate({ status: "online" }),
+        NOW,
+      ),
+      opsForOtherGuild = reducePresenceStatus(
+        [otherGuild],
+        presenceUpdate({ status: "online" }),
+        NOW,
+      );
     expect(opsForOtherUser).toHaveLength(1);
     expect(opsForOtherUser[0]?.kind).toBe("open");
     expect(opsForOtherGuild).toHaveLength(1);
