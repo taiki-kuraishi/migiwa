@@ -261,6 +261,11 @@ DO の `alarm()` ハンドラは 1 つで、3 つの期限をメモリに持つ(
 unstable としているので同一性には使わない。`end_reason` の値: `status_change`, `offline`,
 `activity_end`, `leave`, `move`, `snapshot_missing`, `guild_removed`, `timeout`。
 
+`self_stream` は payload に無いことがある。slice ではこの列だけ optional にし、reducer は欠けて
+いれば `false` として扱う。`.claude/rules/rebuild.md` の「A required slice field has no fallback
+downstream」の唯一の例外がこれで、`self_stream` は元から必須スライスフィールドではないので
+fallback を書いてよい。
+
 `GUILD_CREATE` の payload は `{ id, name, member_count, large, presences_count,
 voice_states_count }` に刈り込んで保存する。`PRESENCE_UPDATE` / `VOICE_STATE_UPDATE` は `d` を
 そのまま保存する。
@@ -280,7 +285,7 @@ boolean は `integer({ mode: "boolean" })`、JSON は `text({ mode: "json" })`�
 |---|---|
 | `PRESENCE_UPDATE` | **status:** open 行の `status` が同じなら何もしない。違えば close(`status_change`、新 status が `offline` なら `offline`)し、新 status が `offline` でなければ新しい行を open。**activities:** payload の `(type, activity_key)` の集合を作り、集合に無い open 行を close(`activity_end`)、open 行が無いキーを open(`started_at` は Discord の `created_at`（`ActivitySlice` で必須。欠けた payload は D13 の検証で dispatch ごと捨てられ、`frame_dropped` として件数が log に残る）)、両方にあるキーは `state` / `details` を更新。`offline` は activity 行も全部 close する。 |
 | `VOICE_STATE_UPDATE` | open 行なし ∧ `channel_id ≠ null` → open。open 行あり ∧ `channel_id = null` → close(`leave`)。open 行あり ∧ `channel_id` が違う → close(`move`)して open。同じチャンネル → フラグ更新のみ。 |
-| `GUILD_CREATE` | `guilds` を upsert。`presences[]` と `voice_states[]` を上の 2 規則で適用。その後**突き合わせ**: この guild の open 行のうち、スナップショットに居ない user を close(`snapshot_missing`、`ended_at` は `disconnected_at` があればそれ、無ければ `received_at`)。`member_count > 75,000` の guild は Discord が `presences` を刈り込むため、presence の突き合わせをスキップする。 |
+| `GUILD_CREATE` | `guilds` を upsert(`available: true` にする。GUILD_DELETE の `available = 0` を戻す唯一の経路)。unavailable スタブ(`name` / `member_count` / `presences` を持たない)は slice の検証で弾かれ `frame_dropped` に数えられる(Discord は実際にはこれを GUILD_CREATE として送らない)。`presences[]` と `voice_states[]` を上の 2 規則で適用。その後**突き合わせ**: この guild の open 行のうち、スナップショットに居ない user を close(`snapshot_missing`、`ended_at` は `disconnected_at` があればそれ、無ければ `received_at`。ただし行自身の `started_at` を下回らないよう clamp する)。この close 対象(スナップショットに居ない user)と上の open/update 対象(居る user)は user ごとに互いに排他なので、どちらを先に適用しても `*_open_uidx` には触れない。`member_count > 75,000` の guild は Discord が `presences` を刈り込むため、presence の突き合わせをスキップする(75,000 という数値自体は Discord の刈り込み挙動をなぞっただけで、本リポジトリの値から導いたものではない)。 |
 | `GUILD_DELETE` | `unavailable = true`(障害): `guilds.available = 0` にし、セッションは開けたまま。それ以外(bot が外された): この guild の open 行を全部 close(`guild_removed`)し、guild を unavailable にする。 |
 | `READY` / `RESUMED` | gateway 状態のみ更新。RESUME 成功後は replay されたイベントが通常の規則を通る。新規 IDENTIFY 後は `GUILD_CREATE` のスナップショットが補正を行う。 |
 
