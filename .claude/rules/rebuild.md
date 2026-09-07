@@ -71,9 +71,10 @@ A mock that accepts more than the real service turns its test into a no-op. When
 suite fakes an external service, state in the task what the real service **rejects** that the
 mock accepts, and say which behaviour therefore has no test.
 
-The wave-8 mock Discord accepts a RESUME regardless of the preceding close code, so the test
-named for op 7 Reconnect passed green while the real gateway would have dropped the session on
-every reconnect — only the 24-hour soak would have found it.
+The wave-8 mock Discord accepts a RESUME regardless of the preceding close code, so nothing in
+that suite can tell a correct `dropSocket()` from one that lets Discord invalidate the session
+on every reconnect — only the 24-hour soak would. The mock's header now lists every such
+shortcut; keep that list current when you touch the mock.
 
 ## Wiring typia into a workspace
 
@@ -119,3 +120,21 @@ it. A new entry point that skips either layer is a security bug, not a shortcut.
 
 The bearer middleware is mounted on `*` and exceptions are listed by path (`/health` only).
 Do not mount it per route: a route added without the middleware would be public by default.
+
+## Durable Object storage survives deploys
+
+A Durable Object keeps its SQLite across every deploy, and Cloudflare refuses to delete a class
+that any binding still references. So a regenerated drizzle migration (new file name / hash)
+can never apply to an object that already ran the old one: the migrator re-runs `CREATE TABLE`
+and the constructor throws `Rollback` forever. Once a namespace has data, only ever add
+migrations. During development, if you must regenerate, key the object by a new name
+(`idFromName("bot")` replaced `"default"` for this reason) — do not try `deleted_classes`.
+
+## Required secrets are set before the version that needs them
+
+`secrets.required` makes the deploy fail until the secret exists, and once Workers Builds has
+uploaded a newer version than the one deployed, plain `wrangler secret put` is refused. Set it
+with `wrangler versions secret put <NAME>` (creates a new version without deploying), then
+deploy that version or let the next build inherit it. Verify the value against the real API
+first (`GET /gateway/bot` with the bot token) — a stale token parks the bot in `fatal` for an
+hour per attempt.
