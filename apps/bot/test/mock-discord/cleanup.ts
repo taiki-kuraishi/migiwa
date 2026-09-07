@@ -29,8 +29,12 @@ export async function closeLiveSocket(): Promise<void> {
 // Shared by gateway.spec.ts and scheduled.spec.ts: both leave a Durable Object instance and a
 // Mock Discord connection behind that the next test must not inherit.
 export async function resetBot(): Promise<void> {
-  await mockDiscord.reset();
+  // Close before reset, not after: closing fires the mock's own close listener, which (on code
+  // 1000/1001) flips `options.resumable` to false and, either way, records a close code. Reset
+  // Must land after that settles, or a late close event from this test's own teardown would
+  // Mutate the next test's fresh `options`/closeCodes instead of this test's now-discarded ones.
   await closeLiveSocket();
+  await mockDiscord.reset();
   // A pending alarm would re-create the object after eviction and reconnect to a reset mock;
   // A leftover session id would turn the next test's IDENTIFY into a RESUME.
   await runInDurableObject(botStub(env), async (_instance, ctx) => {
