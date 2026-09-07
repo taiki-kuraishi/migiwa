@@ -71,10 +71,11 @@ A mock that accepts more than the real service turns its test into a no-op. When
 suite fakes an external service, state in the task what the real service **rejects** that the
 mock accepts, and say which behaviour therefore has no test.
 
-The wave-8 mock Discord accepts a RESUME regardless of the preceding close code, so nothing in
-that suite can tell a correct `dropSocket()` from one that lets Discord invalidate the session
-on every reconnect — only the 24-hour soak would. The mock's header now lists every such
-shortcut; keep that list current when you touch the mock.
+The wave-9 mock Discord models one resumability rule (a 1000/1001 close kills the session) and
+the op-7 test pins `dropSocket()`'s close code against it. What it still accepts: IDENTIFY and
+RESUME payloads it never validates, a RESUME it never replays from `seq`, heartbeats it never
+demands. Nothing in the suite proves those; only the 24-hour soak does. The mock's header lists
+every such shortcut; keep that list current when you touch the mock.
 
 ## Wiring typia into a workspace
 
@@ -138,3 +139,25 @@ with `wrangler versions secret put <NAME>` (creates a new version without deploy
 deploy that version or let the next build inherit it. Verify the value against the real API
 first (`GET /gateway/bot` with the bot token) — a stale token parks the bot in `fatal` for an
 hour per attempt.
+
+## A test constrains what it names only if the reverted code fails it
+
+Before a test is reported as covering a branch, revert that branch (or the one line that
+implements it), watch the test fail, restore it, and say so in the report. Wave 9 shipped 39
+green tests while four named behaviours — op 9 `d: true`, the resume host, the zombie close and
+the RESUME-path `backoff_until` clear — survived their reversal untouched. A test whose name
+claims more than its assertions pin is renamed or extended, never left.
+
+## Plan snippets follow the code within the wave
+
+When a review fix changes a shape the plan shows in a snippet — a helper name, a call, a file
+list, a test name — the plan is updated in the same PR, including snippets in later waves that
+import the thing that changed. Wave 9 deleted `waitFor()`; three plan snippets, one in Wave 12,
+still imported it until the re-review caught them.
+
+## A Durable Object holding a live outbound socket cannot be evicted
+
+`evictDurableObject()` hangs on an object whose outbound WebSocket is still open — the socket
+cannot hibernate (spec §12). Close the socket first (`closeLiveSocket()`), then evict. Eviction
+of a live-socket object is the one recovery path the suite cannot cover; the 24-hour soak is
+where it is observed.
