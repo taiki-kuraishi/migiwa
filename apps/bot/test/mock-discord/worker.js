@@ -11,9 +11,10 @@ import { DurableObject } from "cloudflare:workers";
 // What this mock accepts that the real Discord would reject (.claude/rules/rebuild.md "Mocks
 // That accept too much"): no Authorization check on GET /gateway/bot; no check of the upgrade
 // Request's `?v=10&encoding=json`; no fatal close code unless a test sets closeAfterIdentify;
-// READY with zero RTT unless a test sets readyDelayMs; and RESUME accepted whenever
-// `options.resumable` is true. The mock only flips that to false automatically after a close
-// With code 1000 or 1001 (mirroring real Discord's own rule) — after any other code that should
+// READY with zero RTT unless a test sets readyDelayMs (RESUMED likewise, via resumedDelayMs);
+// And RESUME accepted whenever `options.resumable` is true. The mock only flips that to false
+// Automatically after a close with code 1000 or 1001 (mirroring real Discord's own rule) —
+// After any other code that should
 // Also forbid RESUME (a fatal code, an IDENTIFY-only code like 4009), `resumable` stays true
 // Unless a test sets it itself, so nothing here catches a RESUME wrongly sent after one of those.
 // (a) IDENTIFY's `token` / `intents` / `properties` are never checked — real Discord answers

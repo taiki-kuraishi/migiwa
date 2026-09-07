@@ -494,9 +494,12 @@ export class BotObject extends DurableObject {
   // 4003/4007/4009 row): discard-or-keep the session is the caller's job (via `store`), waiting
   // Discord's 1-5 s before the alarm's next connect() is not.
   private invalidSessionBackoff(store: GatewayStore, reason: string, now: number): void {
-    const waiting = { ...store, backoff_until: now + invalidSessionDelayMs() };
+    const delay = invalidSessionDelayMs(),
+      waiting = { ...store, backoff_until: now + delay };
     writeGateway(this.ctx.storage.kv, withStatus(waiting, "backoff", reason, now));
-    log("invalid_session", { reason });
+    // `delay_ms` feeds Task 15's "time not connected" estimate the same way scheduleReconnect()'s
+    // Own "backoff" log does.
+    log("invalid_session", { delay_ms: delay, reason });
     this.scheduleAlarm(now);
   }
 
