@@ -1,7 +1,7 @@
 import type { ActivitySession } from "@migiwa/db";
-import type { ActivitySlice } from "@migiwa/gateway";
+import type { ActivitySlice, PresenceSlice } from "@migiwa/gateway";
 
-import type { PresenceLike, SessionOp } from "./types";
+import type { SessionOp } from "./types";
 
 import { presenceStatus } from "./presence";
 
@@ -9,16 +9,13 @@ import { presenceStatus } from "./presence";
 export const activityKey = (activity: ActivitySlice): string =>
   activity.application_id ?? activity.name;
 
-// Not an arrow-function const: oxlint's `one-var` would then require merging this with the
-// exported `activityKey` const above into a single statement, which would export it too.
 function identity(type: number, key: string): string {
   return `${type}:${key}`;
 }
 
 // Discord can list the same application twice (e.g. two Spotify entries); first one wins.
-// One Map, keyed by identity, instead of a dedupe Set: reduceActivities used to rebuild the same identity set a second time as `wantedIds` for the close loop.
-// A single Map is both the deduped payload (open/update loop, via `.values()`) and the membership check (close loop, via `.has()`), so there's only one place that can drift from the other.
-function dedupeActivities(activities: ActivitySlice[]): Map<string, ActivitySlice> {
+// One Map, keyed by identity, serves both loops in reduceActivities: `.values()` gives the deduped payload (open/update), `.has()` gives the membership check (close) — one place that can drift instead of two.
+function wantedActivities(activities: ActivitySlice[]): Map<string, ActivitySlice> {
   const wanted = new Map<string, ActivitySlice>();
   for (const activity of activities) {
     const id = identity(activity.type, activityKey(activity));
@@ -33,11 +30,12 @@ function dedupeActivities(activities: ActivitySlice[]): Map<string, ActivitySlic
 // Offline closes everything.
 export function reduceActivities(
   open: ActivitySession[],
-  d: PresenceLike,
+  d: PresenceSlice,
   received_at: number,
 ): SessionOp[] {
   const offline = presenceStatus(d.status) === null,
-    wanted = dedupeActivities(offline ? [] : (d.activities ?? [])),
+    // `d.activities` is optional; a payload without it means the empty set, so every open row below closes.
+    wanted = wantedActivities(offline ? [] : (d.activities ?? [])),
     mine = open.filter((row) => row.guild_id === d.guild_id && row.user_id === d.user.id),
     ops: SessionOp[] = [];
   for (const activity of wanted.values()) {
@@ -59,6 +57,8 @@ export function reduceActivities(
           name: activity.name,
           state,
           details,
+          // `created_at` is required by `ActivitySlice` (D13), so there is no `received_at` fallback — a payload without it never reaches this function.
+          // `started_at` is Discord's clock while `ended_at` is the Durable Object's (`received_at`), so a consumer computing durations can see skew.
           started_at: activity.created_at,
         },
       });

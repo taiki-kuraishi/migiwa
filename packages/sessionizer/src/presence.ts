@@ -1,20 +1,19 @@
 import type { PresenceSession, PresenceStatus } from "@migiwa/db";
+import type { PresenceSlice } from "@migiwa/gateway";
 
-import type { PresenceLike, SessionOp } from "./types";
-
-const TRACKED_STATUSES: readonly PresenceStatus[] = ["online", "idle", "dnd"];
+import type { SessionOp } from "./types";
 
 // Discord also sends "offline" and (for the bot itself) "invisible"; both mean "not here".
 // A missing `status` (PresenceSlice.status is optional) is treated the same way, as offline.
 export function presenceStatus(status: string | undefined): PresenceStatus | null {
-  return TRACKED_STATUSES.find((tracked) => tracked === status) ?? null;
+  return status === "online" || status === "idle" || status === "dnd" ? status : null;
 }
 
 // Spec §6.3, PRESENCE_UPDATE / status.
 // The partial unique index guarantees at most one open row per (guild, user), so `find` is enough.
 export function reducePresenceStatus(
   open: PresenceSession[],
-  d: PresenceLike,
+  d: PresenceSlice,
   received_at: number,
 ): SessionOp[] {
   const current = open.find((row) => row.guild_id === d.guild_id && row.user_id === d.user.id),

@@ -34,10 +34,6 @@ export type SessionOp =
     }
   | { kind: "update"; table: "voice"; id: number; patch: Partial<VoiceFlags> };
 
-// The fields the presence rules read: the slice apps/bot validated with typia (spec D13).
-// GUILD_CREATE's `presences[]` entries have the same shape.
-export type PresenceLike = PresenceSlice;
-
 // The dispatches apps/bot hands to reduce(). Task 18 adds VOICE_STATE_UPDATE and turns this into a union.
 // At that point `typescript/consistent-type-definitions` requires `type` again, since interfaces can't express unions.
 export interface IngestEvent {
