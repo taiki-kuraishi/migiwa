@@ -278,7 +278,7 @@ boolean は `integer({ mode: "boolean" })`、JSON は `text({ mode: "json" })`�
 
 | イベント | 規則 |
 |---|---|
-| `PRESENCE_UPDATE` | **status:** open 行の `status` が同じなら何もしない。違えば close(`status_change`、新 status が `offline` なら `offline`)し、新 status が `offline` でなければ新しい行を open。**activities:** payload の `(type, activity_key)` の集合を作り、集合に無い open 行を close(`activity_end`)、open 行が無いキーを open(`started_at` は Discord の `created_at` があればそれ、無ければ `received_at`)、両方にあるキーは `state` / `details` を更新。`offline` は activity 行も全部 close する。 |
+| `PRESENCE_UPDATE` | **status:** open 行の `status` が同じなら何もしない。違えば close(`status_change`、新 status が `offline` なら `offline`)し、新 status が `offline` でなければ新しい行を open。**activities:** payload の `(type, activity_key)` の集合を作り、集合に無い open 行を close(`activity_end`)、open 行が無いキーを open(`started_at` は Discord の `created_at`（`ActivitySlice` で必須。欠けた payload は D13 の検証で dispatch ごと捨てられ、`frame_dropped` として件数が log に残る）)、両方にあるキーは `state` / `details` を更新。`offline` は activity 行も全部 close する。 |
 | `VOICE_STATE_UPDATE` | open 行なし ∧ `channel_id ≠ null` → open。open 行あり ∧ `channel_id = null` → close(`leave`)。open 行あり ∧ `channel_id` が違う → close(`move`)して open。同じチャンネル → フラグ更新のみ。 |
 | `GUILD_CREATE` | `guilds` を upsert。`presences[]` と `voice_states[]` を上の 2 規則で適用。その後**突き合わせ**: この guild の open 行のうち、スナップショットに居ない user を close(`snapshot_missing`、`ended_at` は `disconnected_at` があればそれ、無ければ `received_at`)。`member_count > 75,000` の guild は Discord が `presences` を刈り込むため、presence の突き合わせをスキップする。 |
 | `GUILD_DELETE` | `unavailable = true`(障害): `guilds.available = 0` にし、セッションは開けたまま。それ以外(bot が外された): この guild の open 行を全部 close(`guild_removed`)し、guild を unavailable にする。 |
