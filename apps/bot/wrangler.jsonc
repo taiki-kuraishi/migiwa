@@ -15,7 +15,14 @@
   "durable_objects": {
     "bindings": [{ "name": "BOT", "class_name": "BotObject" }],
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["BotObject"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["BotObject"] },
+    // v2/v3 wipe every BotObject created before the rebuild: their drizzle journal names the
+    // pre-rebuild migration, so the regenerated one can never apply on top of them
+    // (constructor throws `Rollback` forever). Nothing but the skeleton's empty tables is lost.
+    { "tag": "v2", "deleted_classes": ["BotObject"] },
+    { "tag": "v3", "new_sqlite_classes": ["BotObject"] },
+  ],
   // Outer watchdog (spec §4): wakes the DO every minute in case its alarm chain died.
   "triggers": { "crons": ["* * * * *"] },
   // @migiwa/db/migrations imports the .sql files as text (drizzle-kit's durable-sqlite bundle).
