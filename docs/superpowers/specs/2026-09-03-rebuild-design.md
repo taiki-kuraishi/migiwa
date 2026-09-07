@@ -149,7 +149,7 @@ heartbeat が追いついている(送った heartbeat に ACK があり、次�
 ### 5.3 `connect()`(唯一の async 経路)
 
 1. `session_id` と `resume_gateway_url` があれば `${resume_gateway_url}?v=10&encoding=json` に
-   WebSocket を開き `RESUME { token, session_id, seq }` を送る。
+   WebSocket を開き、HELLO を待って `RESUME { token, session_id, seq }` を送る。
 2. 無ければ `GET /gateway/bot`。
    - `shards > 1` → `status = fatal("sharding_required")`。
    - `session_start_limit.remaining < 50` → `reset_after` まで待つ(`backoff`)。
@@ -422,7 +422,9 @@ bearer token を設定する。
 2. **`@cloudflare/vitest-plugin`(`apps/*`、実 workerd)**: モック Discord(plain JS の auxiliary
    worker。`GET /gateway/bot` と Gateway の WebSocket を偽装し、Miniflare の `outboundService` で
    bot の全 outbound `fetch` を受ける)に対する `BotObject`(HELLO → IDENTIFY → READY → dispatch →
-   op 7 → RESUME)、eviction 後に保存済み `seq` で RESUME が成功すること、新規 DO への migration 適用
+   op 7 → RESUME)、eviction 後に保存済み `seq` で RESUME が成功すること(socket を閉じてから evict
+   する。live な outbound socket を持つ DO は evict できない(socket は hibernate できない、§12)ので、
+   その状態の eviction は自動テストの対象外)、新規 DO への migration 適用
    と 2 回目が no-op であること、`InMemoryTransport` 経由の MCP(`listTools()` が `["query"]`)、
    bot の `/health` が常に 200、remote-mcp の `/health` の 200/503、`sqlite_master` と description
    のズレ検査。vitest の config は deploy と同じ `wrangler.jsonc` を指す。auxiliary worker は
