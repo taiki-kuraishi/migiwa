@@ -53,7 +53,9 @@ describe("reduce", () => {
       },
       9000,
     );
-    expect(ops).toMatchObject([{ kind: "open", table: "voice", row: { channel_id: "c1" } }]);
+    expect(ops).toMatchObject([
+      { kind: "open", table: "voice", row: { channel_id: "c1", self_stream: false } },
+    ]);
   });
 
   test("VOICE_STATE_UPDATE without a guild (a DM call) is ignored", () => {

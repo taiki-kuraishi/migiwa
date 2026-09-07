@@ -21,19 +21,14 @@ const FLAG_NAMES = [
     suppress: d.suppress,
   });
 
-function diffFlags(row: VoiceFlags, next: VoiceFlags): Partial<VoiceFlags> {
+// Split out to keep reduceVoice under oxlint's max-statements: row is already known open, so this only ever emits zero or one "update" op, the same-channel branch's whole job.
+function updateOp(row: VoiceSession, next: VoiceFlags): SessionOp[] {
   const patch: Partial<VoiceFlags> = {};
   for (const name of FLAG_NAMES) {
     if (row[name] !== next[name]) {
       patch[name] = next[name];
     }
   }
-  return patch;
-}
-
-// Split out to keep reduceVoice under oxlint's max-statements (10): row is already known open, so this only ever emits zero or one "update" op, the same-channel branch's whole job.
-function updateOp(row: VoiceSession, next: VoiceFlags): SessionOp[] {
-  const patch = diffFlags(row, next);
   return Object.keys(patch).length === 0
     ? []
     : [{ kind: "update", table: "voice", id: row.id, patch }];

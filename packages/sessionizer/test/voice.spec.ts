@@ -15,7 +15,6 @@ const NOW = 5000,
     self_stream: false,
     self_video: false,
     suppress: false,
-    request_to_speak_timestamp: null,
     ...flags,
   });
 
@@ -57,6 +56,7 @@ describe("reduceVoice", () => {
   test("open row and another channel: close with move, then open", () => {
     const row = voiceRow({ channel_id: "c1" }),
       ops = reduceVoice([row], "g1", state("c2"), NOW);
+    expect(ops).toHaveLength(2);
     expect(ops[0]).toEqual({
       kind: "close",
       table: "voice",
