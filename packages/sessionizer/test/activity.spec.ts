@@ -2,6 +2,8 @@ import type { ActivitySlice } from "@migiwa/gateway";
 
 import { describe, expect, test } from "bun:test";
 
+import type { SessionOp } from "../src/types";
+
 import { activityKey, reduceActivities } from "../src/activity";
 import { activityRow } from "./fixtures";
 
@@ -86,8 +88,37 @@ describe("reduceActivities", () => {
     const otherUser = activityRow({ user_id: "u2" }),
       otherGuild = activityRow({ guild_id: "g2" }),
       opsForOtherUser = reduceActivities([otherUser], update([game()]), NOW),
-      opsForOtherGuild = reduceActivities([otherGuild], update([game()]), NOW);
-    expect(opsForOtherUser).toEqual([
+      opsForOtherGuild = reduceActivities([otherGuild], update([game()]), NOW),
+      expectedOpen: SessionOp[] = [
+        {
+          kind: "open",
+          table: "activity",
+          row: {
+            guild_id: "g1",
+            user_id: "u1",
+            activity_type: 0,
+            activity_key: "app-1",
+            application_id: "app-1",
+            name: "Game",
+            state: null,
+            details: null,
+            started_at: 4000,
+          },
+        },
+      ];
+    expect(opsForOtherUser).toEqual(expectedOpen);
+    expect(opsForOtherGuild).toEqual(expectedOpen);
+  });
+
+  // Discord can list the same application twice in one payload (e.g. two Spotify entries).
+  // A duplicate `open` op would violate activity_sessions_open_uidx (packages/db); it must dedupe.
+  test("keeps only the first activity when Discord lists the same (type, key) twice", () => {
+    const ops = reduceActivities(
+      [],
+      update([game({ state: "First" }), game({ state: "Second" })]),
+      NOW,
+    );
+    expect(ops).toEqual([
       {
         kind: "open",
         table: "activity",
@@ -98,12 +129,23 @@ describe("reduceActivities", () => {
           activity_key: "app-1",
           application_id: "app-1",
           name: "Game",
-          state: null,
+          state: "First",
           details: null,
           started_at: 4000,
         },
       },
     ]);
-    expect(opsForOtherGuild).toEqual(opsForOtherUser);
+  });
+
+  test("keeps the first activity's state when an existing row's key is listed twice, and does not close it", () => {
+    const row = activityRow({ state: "Lobby" }),
+      ops = reduceActivities(
+        [row],
+        update([game({ state: "First" }), game({ state: "Second" })]),
+        NOW,
+      );
+    expect(ops).toEqual([
+      { kind: "update", table: "activity", id: row.id, patch: { state: "First", details: null } },
+    ]);
   });
 });
