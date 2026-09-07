@@ -32,4 +32,51 @@ describe("reduce", () => {
       { kind: "close", table: "activity", id: activity.id, ended_at: 9000, end_reason: "offline" },
     ]);
   });
+
+  test("VOICE_STATE_UPDATE runs the voice rule", () => {
+    const ops = reduce(
+      { presence: [], activity: [], voice: [] },
+      {
+        t: "VOICE_STATE_UPDATE",
+        d: {
+          guild_id: "g1",
+          user_id: "u1",
+          session_id: "vs-1",
+          channel_id: "c1",
+          self_mute: false,
+          self_deaf: false,
+          mute: false,
+          deaf: false,
+          self_video: false,
+          suppress: false,
+        },
+      },
+      9000,
+    );
+    expect(ops).toMatchObject([
+      { kind: "open", table: "voice", row: { channel_id: "c1", self_stream: false } },
+    ]);
+  });
+
+  test("VOICE_STATE_UPDATE without a guild (a DM call) is ignored", () => {
+    const ops = reduce(
+      { presence: [], activity: [], voice: [] },
+      {
+        t: "VOICE_STATE_UPDATE",
+        d: {
+          user_id: "u1",
+          session_id: "vs-1",
+          channel_id: "c1",
+          self_mute: false,
+          self_deaf: false,
+          mute: false,
+          deaf: false,
+          self_video: false,
+          suppress: false,
+        },
+      },
+      9000,
+    );
+    expect(ops).toEqual([]);
+  });
 });

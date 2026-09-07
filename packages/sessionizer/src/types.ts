@@ -1,5 +1,5 @@
 import type { ActivitySession, EndReason, PresenceSession, VoiceSession } from "@migiwa/db";
-import type { PresenceSlice } from "@migiwa/gateway";
+import type { PresenceSlice, VoiceStateSlice } from "@migiwa/gateway";
 
 // The open rows (`ended_at IS NULL`) a rule compares against, loaded by apps/bot per event: one user's rows for PRESENCE_UPDATE / VOICE_STATE_UPDATE, the whole guild's for GUILD_CREATE.
 export interface OpenRows {
@@ -34,9 +34,10 @@ export type SessionOp =
     }
   | { kind: "update"; table: "voice"; id: number; patch: Partial<VoiceFlags> };
 
-// The dispatches apps/bot hands to reduce(). Task 18 adds VOICE_STATE_UPDATE and turns this into a union.
-// At that point `typescript/consistent-type-definitions` requires `type` again, since interfaces can't express unions.
-export interface IngestEvent {
-  t: "PRESENCE_UPDATE";
-  d: PresenceSlice;
-}
+// GUILD_CREATE's voice_states[] entries have the same shape minus guild_id.
+export type VoiceStateLike = Omit<VoiceStateSlice, "guild_id">;
+
+// The dispatches apps/bot hands to reduce(): the slices it validated with typia (spec D13).
+export type IngestEvent =
+  | { t: "PRESENCE_UPDATE"; d: PresenceSlice }
+  | { t: "VOICE_STATE_UPDATE"; d: VoiceStateSlice };
