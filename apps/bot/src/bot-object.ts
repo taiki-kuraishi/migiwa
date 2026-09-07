@@ -205,7 +205,11 @@ export class BotObject extends DurableObject {
     // RESUME is the normal path (spec §4): the process dies several times a day, the session
     // Does not. Discord replays every dispatch after `seq`, which the ingest transaction wrote.
     if (current.session_id !== null && current.resume_gateway_url !== null) {
-      writeGateway(kv, withStatus(current, "resuming", null, now));
+      // Same stale-deadline hazard as `reconnected` above: without clearing `backoff_until` here
+      // Too, scheduleAlarm() (called from onHello() once HELLO arrives) would pick the already-
+      // Elapsed deadline and spin the alarm at max rate for the whole RESUME window — forever if
+      // RESUMED never arrives.
+      writeGateway(kv, { ...withStatus(current, "resuming", null, now), backoff_until: null });
       const resumed = await openGatewaySocket(gatewayHttpUrl(current.resume_gateway_url));
       resumed.match({
         ok: (socket) => this.adoptSocket(socket),

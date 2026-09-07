@@ -124,10 +124,11 @@ export class MockGateway extends DurableObject {
   }
 
   resetMock() {
-    // The object persists for the whole test run (see the file header), so a leftover socket
-    // From the previous test must be closed here, unlike the old stateless mock, which could
-    // Never reach a socket accepted by an earlier request in the first place.
-    this.server?.close();
+    // Not closing `server` here: every caller (BotObject's own dropSocket()/close reach-in, or
+    // A Discord-initiated close via /close) already closes its end before or instead of calling
+    // /reset, and a WebSocketPair's close propagates to the other side — calling close() again
+    // On an already-closing socket throws "already closed by the other side". Nulling the
+    // Reference is enough; onSocketClose() above does the same once that event lands.
     this.server = null;
     this.received = [];
     this.connections = 0;

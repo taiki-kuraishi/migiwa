@@ -13,19 +13,24 @@ interface WithSocket {
   socket: WebSocket | null;
 }
 
-// Shared by gateway.spec.ts and scheduled.spec.ts: both leave a Durable Object instance and a
-// Mock Discord connection behind that the next test must not inherit.
-export async function resetBot(): Promise<void> {
-  await mockDiscord.reset();
-  // BotObject's socket is a plain (non-hibernatable) WebSocket that only its own DO instance
-  // May touch (see mock-discord/worker.js for the same restriction from the other side).
-  // Left open, evictDurableObject() below hangs draining a subrequest that never completes.
-  // This close runs its own onClose() handler, which reschedules an alarm — so it must happen
-  // Before the cleanup below, not after, or that reschedule would undo the cleanup.
+// Exported for callers that need to end a connection mid-test (reconnect.spec.ts), not only at
+// ResetBot()'s end-of-test cleanup. BotObject's socket is a plain (non-hibernatable) WebSocket
+// That only its own DO instance may touch (see mock-discord/worker.js for the same restriction
+// From the other side). Left open, evictDurableObject() hangs draining a subrequest that never
+// Completes. This close runs its own onClose() handler, which reschedules an alarm — a caller
+// That also evicts must call this first, or that reschedule would undo the eviction's own cleanup.
+export async function closeLiveSocket(): Promise<void> {
   await runInDurableObject(botStub(env), (instance) => {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test cleanup only, see WithSocket above.
     (instance as unknown as WithSocket).socket?.close();
   });
+}
+
+// Shared by gateway.spec.ts and scheduled.spec.ts: both leave a Durable Object instance and a
+// Mock Discord connection behind that the next test must not inherit.
+export async function resetBot(): Promise<void> {
+  await mockDiscord.reset();
+  await closeLiveSocket();
   // A pending alarm would re-create the object after eviction and reconnect to a reset mock;
   // A leftover session id would turn the next test's IDENTIFY into a RESUME.
   await runInDurableObject(botStub(env), async (_instance, ctx) => {
