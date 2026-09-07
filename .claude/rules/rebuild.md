@@ -161,3 +161,36 @@ still imported it until the re-review caught them.
 cannot hibernate (spec §12). Close the socket first (`closeLiveSocket()`), then evict. Eviction
 of a live-socket object is the one recovery path the suite cannot cover; the 24-hour soak is
 where it is observed.
+
+## A required slice field has no fallback downstream
+
+When a typia slice marks a field required, the reducer that reads it takes it as given — a
+payload without it is dropped by validation (D13) with a `frame_dropped` count, which is the
+loud failure the design wants. Adding a `?? received_at`-style fallback downstream writes a
+made-up value silently and never runs anyway. If the spec says the bot must tolerate the
+field's absence, loosen the slice (`Partial`) and say so in the spec; do not do both. Wave 10
+shipped a spec sentence promising a fallback that discord-api-types had made unreachable.
+
+## Exports a later wave consumes
+
+An export (or test fixture) that only a later task uses carries a `/** @public */` knip tag
+whose comment names the task that starts using it and removes the tag. Do not add a workspace
+entry to `knip.config.ts` for this: unlisted workspaces are already checked (wave 10 proved it
+with a planted dead export), and re-exports through `src/index.ts` are never reported, so only
+test-side helpers ever need the tag.
+
+## `max-statements` counts nested statements
+
+oxlint's `max-statements: 10` counts every statement in the function body, including those
+inside loops and branches, not only top-level ones. A five-line loop with two `if`s costs
+seven. Measure with `bun run lint` before promising that a helper can be inlined — the wave 10
+ponytail review and its brief both estimated 5 where lint counted 14.
+
+## The plan cites itself by task, never by line
+
+A cross-reference inside the plan names the task and the symbol (「Task 8b の
+`validateDispatch`」), never a plan line number: every wave rewrites hundreds of plan lines, so
+a line number is stale by the next PR. The same goes for citations of code that a later wave
+may reshape — name the file and symbol, and re-check the citation when that wave lands (wave 9
+turned Task 13's `switch` into an if/else chain and the Global Constraints kept citing the
+switch).
