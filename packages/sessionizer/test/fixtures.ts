@@ -25,6 +25,11 @@ export function presenceRow(overrides: Partial<PresenceSession> = {}): PresenceS
   };
 }
 
+/**
+ * @public Unused until Task 17 (the activity rule) starts calling it; knip's `@public` tag keeps
+ * this one export out of the dead-export report without hiding unrelated dead code in this file.
+ * Remove this tag once Task 17 lands and imports `activityRow`.
+ */
 export function activityRow(overrides: Partial<ActivitySession> = {}): ActivitySession {
   return {
     id: allocateId(),
@@ -43,6 +48,11 @@ export function activityRow(overrides: Partial<ActivitySession> = {}): ActivityS
   };
 }
 
+/**
+ * @public Unused until Task 18 (Wave 11, the voice rule) starts calling it; knip's `@public` tag
+ * keeps this one export out of the dead-export report without hiding unrelated dead code in this
+ * file. Remove this tag once Task 18 lands and imports `voiceRow` from `test/voice.spec.ts`.
+ */
 export function voiceRow(overrides: Partial<VoiceSession> = {}): VoiceSession {
   return {
     id: allocateId(),

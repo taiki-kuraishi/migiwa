@@ -5,6 +5,7 @@ import type { PresenceLike, SessionOp } from "./types";
 const TRACKED_STATUSES: readonly PresenceStatus[] = ["online", "idle", "dnd"];
 
 // Discord also sends "offline" and (for the bot itself) "invisible"; both mean "not here".
+// A missing `status` (PresenceSlice.status is optional) is treated the same way, as offline.
 export function presenceStatus(status: string | undefined): PresenceStatus | null {
   return TRACKED_STATUSES.find((tracked) => tracked === status) ?? null;
 }

@@ -17,7 +17,7 @@ function update(
 }
 
 describe("presenceStatus", () => {
-  test("keeps online, idle and dnd; everything else is offline", () => {
+  test("keeps online, idle and dnd; everything else is untracked (null)", () => {
     expect(presenceStatus("online")).toBe("online");
     expect(presenceStatus("idle")).toBe("idle");
     expect(presenceStatus("dnd")).toBe("dnd");
@@ -87,9 +87,13 @@ describe("reducePresenceStatus", () => {
   });
 
   test("only looks at the row of the same guild and user", () => {
-    const other = presenceRow({ user_id: "u2", status: "online" }),
-      ops = reducePresenceStatus([other], update("online"), NOW);
-    expect(ops).toHaveLength(1);
-    expect(ops[0]?.kind).toBe("open");
+    const otherUser = presenceRow({ user_id: "u2", status: "online" }),
+      otherGuild = presenceRow({ guild_id: "g2", status: "online" }),
+      opsForOtherUser = reducePresenceStatus([otherUser], update("online"), NOW),
+      opsForOtherGuild = reducePresenceStatus([otherGuild], update("online"), NOW);
+    expect(opsForOtherUser).toHaveLength(1);
+    expect(opsForOtherUser[0]?.kind).toBe("open");
+    expect(opsForOtherGuild).toHaveLength(1);
+    expect(opsForOtherGuild[0]?.kind).toBe("open");
   });
 });

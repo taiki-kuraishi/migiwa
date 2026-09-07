@@ -31,9 +31,5 @@ export default {
       entry: ["test/fake-bot/worker.js"],
       ignoreDependencies: ["cloudflare"],
     },
-    // `test/fixtures.ts` ships all three row builders (`presenceRow`, `activityRow`, `voiceRow`) together, but only the presence status rule lands this wave.
-    // Task 17 (the activity rule) and a later voice rule are what call `activityRow` / `voiceRow`.
-    // Listing the file as an entry keeps knip from reporting those two as dead exports before their consumers exist.
-    "packages/sessionizer": { entry: ["test/fixtures.ts"] },
   },
 } satisfies KnipConfig;
