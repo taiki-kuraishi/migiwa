@@ -5,22 +5,9 @@ import { afterEach, expect, test, vi } from "vitest";
 
 import { botStub } from "../src/bot-stub";
 import { readGateway, writeGateway } from "../src/gateway-state";
+import { connectAndWait, POLL, state, store, waitForState } from "./helpers";
 import { resetBot } from "./mock-discord/cleanup";
 import { mockDiscord } from "./mock-discord/client";
-
-const state = async () => {
-    const report = await botStub(env).status();
-    return report.state;
-  },
-  store = async () =>
-    runInDurableObject(botStub(env), (_instance, ctx) => readGateway(ctx.storage.kv, Date.now())),
-  waitForState = async (want: string): Promise<void> =>
-    vi.waitFor(async () => expect(await state()).toBe(want), { timeout: 5000, interval: 25 });
-
-async function connectAndWait(): Promise<void> {
-  await botStub(env).ensureConnected();
-  await waitForState("connected");
-}
 
 afterEach(resetBot);
 
@@ -53,20 +40,14 @@ test("the alarm sends a heartbeat with the last seq and records the ACK", async 
   await mockDiscord.options({ heartbeatInterval: 200 });
   await connectAndWait();
   await runDurableObjectAlarm(botStub(env));
-  await vi.waitFor(
-    async () => {
-      const frames = await mockDiscord.received();
-      expect(frames.some((frame) => frame.op === 1 && frame.d === 1)).toBe(true);
-    },
-    { timeout: 5000, interval: 25 },
-  );
-  await vi.waitFor(
-    async () => {
-      const saved = await store();
-      expect(saved.last_ack_at).not.toBeNull();
-    },
-    { timeout: 5000, interval: 25 },
-  );
+  await vi.waitFor(async () => {
+    const frames = await mockDiscord.received();
+    expect(frames.some((frame) => frame.op === 1 && frame.d === 1)).toBe(true);
+  }, POLL);
+  await vi.waitFor(async () => {
+    const saved = await store();
+    expect(saved.last_ack_at).not.toBeNull();
+  }, POLL);
 });
 
 test("a failing GET /gateway/bot backs off instead of looping", async () => {

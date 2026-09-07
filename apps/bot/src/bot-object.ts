@@ -22,11 +22,13 @@ import {
   heartbeatPayload,
   IDENTIFY_RESERVE,
   identifyPayload,
+  invalidSessionDelayMs,
   isHealthy,
   isHeartbeatDue,
   isZombie,
   parseGatewayMessage,
   RECONNECT_CLOSE_CODE,
+  resumePayload,
   validateDispatch,
   validateHello,
 } from "@migiwa/gateway";
@@ -187,18 +189,28 @@ export class BotObject extends DurableObject {
       // Read before dropSocket(): safe only because dropSocket() never writes here itself — it
       // Nulls this.socket first, so onClose()'s identity guard on the old socket's close event
       // Bails out before it can call scheduleReconnect().
-      store = readGateway(kv, now),
-      reconnected = {
-        ...withStatus(recordReconnect(store, now), "connecting", null, now),
-        // Clear the stale deadline so scheduleAlarm() cannot pick it as the earliest wake-up and
-        // Fire an alarm that tears this handshake down before HELLO arrives (`backoff_attempt`
-        // Survives so the next real failure keeps counting up). Between now and HELLO the alarm
-        // May have no deadline to schedule at all; ensureConnected()'s CONNECT_GRACE_MS window,
-        // Not the alarm, is what notices a connect() stuck that long.
-        backoff_until: null,
-      };
+      current = recordReconnect(readGateway(kv, now), now),
+      resuming = current.session_id !== null && current.resume_gateway_url !== null;
     this.dropSocket();
-    writeGateway(kv, reconnected);
+    // Clear the stale deadline so scheduleAlarm() cannot pick it as the earliest wake-up and fire
+    // An alarm that tears this handshake down before HELLO arrives (`backoff_attempt` survives so
+    // The next real failure keeps counting up). Between now and HELLO the alarm may have no
+    // Deadline to schedule at all; ensureConnected()'s CONNECT_GRACE_MS window, not the alarm, is
+    // What notices a connect() stuck that long.
+    writeGateway(kv, {
+      ...withStatus(current, resuming ? "resuming" : "connecting", null, now),
+      backoff_until: null,
+    });
+    // RESUME is the normal path (spec §4): the process dies several times a day, the session
+    // Does not. Discord replays every dispatch after `seq`, which the ingest transaction wrote.
+    if (resuming && current.resume_gateway_url !== null) {
+      const resumed = await openGatewaySocket(gatewayHttpUrl(current.resume_gateway_url));
+      resumed.match({
+        ok: (socket) => this.adoptSocket(socket),
+        err: (error) => this.onConnectError(error),
+      });
+      return;
+    }
     await this.attemptConnect(kv, this.env.DISCORD_BOT_TOKEN);
   }
 
@@ -291,31 +303,28 @@ export class BotObject extends DurableObject {
   }
 
   // Split out of onMessage() to keep its own const group from needing `message` narrowed before
-  // The parsed.isErr() check above returns, and to stay under the statement-count limit.
+  // The parsed.isErr() check above returns. An if/else-if chain over the six opcodes, not a
+  // Switch: unicorn/switch-case-braces counts each braced case block's statements against the
+  // Limit on its own, which this chain sidesteps while still fitting the limit as one method.
   private handleFrame(message: GatewayReceivePayload, now: number): void {
-    switch (message.op) {
-      case GatewayOpcodes.Hello: {
-        validateHello(message.d).match({
-          ok: (hello) => this.onHello(hello.heartbeat_interval, now),
-          err: (error) => log("frame_dropped", { reason: `hello:${error.path}` }),
-        });
-        break;
-      }
-      case GatewayOpcodes.Heartbeat: {
-        this.sendHeartbeat(now);
-        break;
-      }
-      case GatewayOpcodes.HeartbeatAck: {
-        this.onHeartbeatAck(now);
-        break;
-      }
-      case GatewayOpcodes.Dispatch: {
-        this.handleDispatch(message, now);
-        break;
-      }
-      default: {
-        break;
-      }
+    if (message.op === GatewayOpcodes.Hello) {
+      validateHello(message.d).match({
+        ok: (hello) => this.onHello(hello.heartbeat_interval, now),
+        err: (error) => log("frame_dropped", { reason: `hello:${error.path}` }),
+      });
+    } else if (message.op === GatewayOpcodes.Heartbeat) {
+      this.sendHeartbeat(now);
+    } else if (message.op === GatewayOpcodes.HeartbeatAck) {
+      this.onHeartbeatAck(now);
+    } else if (message.op === GatewayOpcodes.Dispatch) {
+      this.handleDispatch(message, now);
+    } else if (message.op === GatewayOpcodes.Reconnect) {
+      this.reconnectNow("reconnect_requested");
+    } else if (message.op === GatewayOpcodes.InvalidSession) {
+      // `d` is trusted only as far as it being `true` (spec §5.4 does not validate op 9's `d`);
+      // Anything else Discord might one day send here must not be read as resumable.
+      // oxlint-disable-next-line typescript/no-unnecessary-boolean-literal-compare -- `boolean` is discord-api-types' claim, not a runtime guarantee.
+      this.onInvalidSession(message.d === true, now);
     }
   }
 
@@ -329,17 +338,28 @@ export class BotObject extends DurableObject {
   }
 
   private onHello(intervalMs: number, now: number): void {
-    if (this.socket === null) {
+    const { socket } = this,
+      { kv } = this.ctx.storage,
+      store = readGateway(kv, now);
+    if (socket === null) {
       return;
     }
     this.heartbeat = heartbeatOnHello(intervalMs, now);
-    const { kv } = this.ctx.storage,
-      store = readGateway(kv, now),
-      remaining = store.identify_remaining === null ? null : store.identify_remaining - 1;
-    this.socket.send(identifyPayload(this.env.DISCORD_BOT_TOKEN));
+    if (store.session_id !== null) {
+      socket.send(resumePayload(this.env.DISCORD_BOT_TOKEN, store.session_id, store.seq ?? 0));
+      log("resume", { seq: store.seq });
+    } else {
+      this.sendIdentify(socket, kv, store);
+    }
+    this.scheduleAlarm(now);
+  }
+
+  // Split out of onHello() to stay under the statement-count limit.
+  private sendIdentify(socket: WebSocket, kv: SyncKvStorage, store: GatewayStore): void {
+    socket.send(identifyPayload(this.env.DISCORD_BOT_TOKEN));
+    const remaining = store.identify_remaining === null ? null : store.identify_remaining - 1;
     writeGateway(kv, { ...store, identify_remaining: remaining });
     log("identify", { identify_remaining: remaining });
-    this.scheduleAlarm(now);
   }
 
   private onHeartbeatAck(now: number): void {
@@ -373,6 +393,14 @@ export class BotObject extends DurableObject {
           now,
         );
         log("ready", { guilds: dispatch.d.guilds.length });
+      } else if (dispatch?.t === "RESUMED") {
+        store = withStatus(
+          { ...store, backoff_attempt: 0, backoff_until: null },
+          "connected",
+          null,
+          now,
+        );
+        log("resumed", { seq });
       }
       writeGateway(kv, store);
     });
@@ -401,27 +429,32 @@ export class BotObject extends DurableObject {
   }
 
   // Split out of onClose() to stay under the statement-count limit. Spec §5.7: a fatal code
-  // Needs a human, an IDENTIFY code forbids RESUME, everything else resumes. RESUME itself
-  // (op 7, op 9) is wave 9; this only routes the three outcomes.
+  // Needs a human, an IDENTIFY code forbids RESUME and waits Discord's 1-5 s before the next
+  // IDENTIFY (same as onInvalidSession(false, …) below), everything else resumes with the usual
+  // Exponential backoff. reconnectNow() (op 7) and onInvalidSession() (op 9) cover the other two
+  // Ways a session ends.
   private applyCloseDecision(code: number | undefined, reason: string): void {
     const now = Date.now(),
       { kv } = this.ctx.storage,
-      decision = decideOnClose(code);
+      decision = decideOnClose(code),
+      closeReason = reason === "" ? `close_${code ?? "unknown"}` : reason;
     if (decision.kind === "fatal") {
       this.fail(readGateway(kv, now), decision.reason, now);
       return;
     }
     if (decision.kind === "identify") {
-      writeGateway(kv, clearSession(readGateway(kv, now)));
+      this.invalidSessionBackoff(clearSession(readGateway(kv, now)), closeReason, now);
+      return;
     }
-    this.scheduleReconnect(reason === "" ? `close_${code ?? "unknown"}` : reason);
+    this.scheduleReconnect(closeReason);
   }
 
   // Closing with 1000/1001 tells Discord the client is done, so it discards the session; the
   // RESUME that follows then fails with op 9 (`d: false`) (spec §5.5) — every close meant to
-  // Precede a RESUME must use RECONNECT_CLOSE_CODE instead. Until the mock validates close
-  // Codes, which the wave that rebuilds it as a Durable Object adds, a regression here has no
-  // Test in this suite; only the 24-hour soak would catch it.
+  // Precede a RESUME must use RECONNECT_CLOSE_CODE instead. The mock Discord only models that one
+  // 1000/1001 rule; every other close-code rule it accepts regardless is listed as a shortcut in
+  // Its header (mock-discord/worker.js). "op 7 Reconnect closes the socket and resumes at once" in
+  // Reconnect.spec.ts regression-tests this close code choice against the rule the mock does model.
   private dropSocket(): void {
     const { socket } = this;
     this.socket = null;
@@ -434,6 +467,40 @@ export class BotObject extends DurableObject {
     } catch {
       // Already closed by the other side.
     }
+  }
+
+  // Op 7: Discord wants us to reconnect now; no backoff, RESUME on the new socket.
+  // Unlike alarm()'s awaited call to beginConnect(), this one is fire-and-forget from a
+  // Synchronous message handler, so a rejection (doConnect() throwing) needs its own catch or it
+  // Surfaces nowhere.
+  private reconnectNow(reason: string): void {
+    log("reconnect", { reason });
+    this.dropSocket();
+    void this.beginConnect().catch((error: unknown) =>
+      log("connect_error", { message: describeError(error) }),
+    );
+  }
+
+  // Op 9: wait 1-5 s (Discord's rule), then RESUME if `d` is true, else IDENTIFY afresh.
+  private onInvalidSession(resumable: boolean, now: number): void {
+    this.dropSocket();
+    const { kv } = this.ctx.storage,
+      store = resumable ? readGateway(kv, now) : clearSession(readGateway(kv, now)),
+      reason = resumable ? "invalid_session_resumable" : "invalid_session";
+    this.invalidSessionBackoff(store, reason, now);
+  }
+
+  // Shared by onInvalidSession(false, …) and applyCloseDecision()'s identify branch (spec §5.7's
+  // 4003/4007/4009 row): discard-or-keep the session is the caller's job (via `store`), waiting
+  // Discord's 1-5 s before the alarm's next connect() is not.
+  private invalidSessionBackoff(store: GatewayStore, reason: string, now: number): void {
+    const delay = invalidSessionDelayMs(),
+      waiting = { ...store, backoff_until: now + delay };
+    writeGateway(this.ctx.storage.kv, withStatus(waiting, "backoff", reason, now));
+    // `delay_ms` feeds Task 15's "time not connected" estimate the same way scheduleReconnect()'s
+    // Own "backoff" log does.
+    log("invalid_session", { delay_ms: delay, reason });
+    this.scheduleAlarm(now);
   }
 
   // Exponential backoff (spec §5.7); the alarm calls connect() when it elapses.

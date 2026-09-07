@@ -23,6 +23,9 @@ export default defineConfig({
             modules: true,
             scriptPath: "./test/mock-discord/worker.js",
             compatibilityDate: "2026-08-01",
+            // No useSQLite: the mock keeps its state (server socket, received frames, options)
+            // In instance fields, not storage (see the file header in worker.js).
+            durableObjects: { GATEWAY: { className: "MockGateway" } },
           },
         ],
       },
@@ -31,8 +34,9 @@ export default defineConfig({
   test: {
     // Workerd start-up on a 1 vCPU ubuntu-slim runner does not fit vitest's 5 s default.
     testTimeout: 30_000,
-    // This suite relies on vitest's default per-file isolation: `--no-isolate` breaks it
-    // Because mock-discord/worker.js keeps module-level state that must not leak across files.
+    // This suite relies on vitest's default per-file isolation: `--no-isolate` breaks it because
+    // Every file's BotObject and mock-discord/worker.js's single "gateway" MockGateway instance
+    // Must not leak into another file's tests — each needs its own fresh DO and fresh bot.
     // BotObject.query() throwing across the DO RPC boundary (spec D12) is exactly the case
     // Cloudflare/workers-sdk#7707 (open) logs as a spurious "unhandled error": the throw is
     // Properly awaited and asserted by `.rejects.toThrow()`, but vitest-pool-workers' own RPC
