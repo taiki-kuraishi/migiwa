@@ -1,28 +1,21 @@
 # migiwa
 
-Ingest Discord Gateway events into per-bot SQLite on Cloudflare Durable Objects,
-sessionize presence / activity / voice, and query them over MCP.
+Discord presence, activity and voice sessions on Cloudflare Workers and Durable Objects,
+queried through MCP.
 
-> Status: v1 in progress. See `docs/specs/` for the design (Japanese).
-
-## Architecture
-
-- `migiwa-bot` — a Durable Object holding one Discord Gateway connection per bot,
-  sessionizing events into SQLite.
-- `migiwa-api` — a Worker exposing an MCP `query` tool and a `/health` endpoint.
+> Status: being rebuilt from scratch. The design is
+> `docs/superpowers/specs/2026-09-03-rebuild-design.md` and the plan is
+> `docs/superpowers/plans/2026-09-04-rebuild.md` (both Japanese). Until the plan's last wave
+> lands, this README only covers the toolchain.
 
 ## Develop
 
 ```sh
+mise install
 bun install
-bun run test      # every workspace's tests, through vp run -r test
-bun run type-check
+mise exec -- lefthook install
+bunx vp run oxlint --deny-warnings && bunx vp run oxfmt --check && bunx vp run type-check && bun run knip && bun dedupe --check
 ```
-
-## Self-host
-
-Documented once `migiwa-api` lands (PR 8): two `wrangler secret put` and two
-`wrangler deploy`, then point an MCP client at `/mcp`.
 
 ## License
 

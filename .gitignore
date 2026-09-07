@@ -15,6 +15,3 @@ dist/
 
 # logs
 *.log
-
-# local plans (not published)
-docs/plans/

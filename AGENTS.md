@@ -3,8 +3,8 @@
 ## Language
 
 Code, code comments, README, commit messages, and PRs are in English.
-Design specs under `docs/specs/` and plans under `docs/plans/` are in Japanese;
-`docs/plans/` is gitignored.
+Design specs under `docs/superpowers/specs/` and implementation plans under
+`docs/superpowers/plans/` are in Japanese; both are tracked in git.
 
 ## Package manager: Bun only
 
@@ -67,12 +67,9 @@ and are referenced as `"catalog:"`.
 ## Generated code
 
 Anything produced by a generator and committed must be registered in
-`.gitattributes` with `linguist-generated=true` and never hand-edited. Current:
-`apps/*/worker-configuration.d.ts` (`wrangler types`, via `bunx vp run -r cf-typegen`;
-CI checks it with `wrangler types --check`),
-`packages/db/drizzle/**` (`drizzle-kit generate`, run via `bun run generate:migration` in
-`packages/db`; the hand-written type shim `drizzle/migrations.d.ts` beside it is the one
-exception).
+`.gitattributes` with `linguist-generated=true` and never hand-edited. The
+list of generated paths lives in `.gitattributes`; each generator's command is
+the `scripts` entry of the workspace that owns it.
 
 ## Comments
 
