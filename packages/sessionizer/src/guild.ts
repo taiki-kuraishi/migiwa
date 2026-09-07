@@ -1,3 +1,4 @@
+import type { EndReason } from "@migiwa/db";
 import type { GuildCreateSlice, GuildDeleteSlice } from "@migiwa/gateway";
 
 import type { OpenRows, SessionOp, SessionTable } from "./types";
@@ -31,24 +32,19 @@ interface ClosableRow {
   user_id: string;
 }
 
-// Shared by the three snapshot_missing reconciliation calls in reduceGuildCreate: presence, activity, and voice each need the same filter+map, just against a different table and keep-set.
-// Filters by `guild_id` itself instead of trusting the caller to have pre-scoped `open` — the same defense reducePresenceStatus/reduceActivities/reduceVoice already apply to their own (guild_id, user_id) lookups (spec §6.3: close only this guild's open rows that the snapshot doesn't list).
+// Shared by every "close this guild's open rows" reconciliation in this file: reduceGuildCreate's three snapshot_missing calls (a real keep-set) and reduceGuildDelete's three guild_removed calls (an empty keep-set, since nobody is kept). One function instead of two near-identical filter+map bodies living side by side.
+// Filters by `guild_id` itself instead of trusting the caller to have pre-scoped `open` — the same defense reducePresenceStatus/reduceActivities/reduceVoice already apply to their own (guild_id, user_id) lookups (spec §6.3: both GUILD_CREATE and GUILD_DELETE only touch "この guild の open 行").
 function closeGone(
   rows: ClosableRow[],
   guild_id: string,
   keep: Set<string>,
   table: SessionTable,
   ended_at: number,
+  end_reason: EndReason,
 ): SessionOp[] {
   return rows
     .filter((row) => row.guild_id === guild_id && !keep.has(row.user_id))
-    .map((row): SessionOp => ({
-      kind: "close",
-      table,
-      id: row.id,
-      ended_at,
-      end_reason: "snapshot_missing",
-    }));
+    .map((row): SessionOp => ({ kind: "close", table, id: row.id, ended_at, end_reason }));
 }
 
 // Spec §6.3, GUILD_CREATE: apply the snapshot as if each entry were a live event, then close whatever the snapshot no longer lists. `disconnected_at` is when the bot last lost its socket; users who left while it was away ended then, not now.
@@ -82,17 +78,17 @@ export function reduceGuildCreate(
     ),
     closed = [
       ...(reconcilePresence
-        ? closeGone(open.presence, d.id, presentUsers, "presence", ended_at)
+        ? closeGone(open.presence, d.id, presentUsers, "presence", ended_at, "snapshot_missing")
         : []),
       ...(reconcilePresence
-        ? closeGone(open.activity, d.id, presentUsers, "activity", ended_at)
+        ? closeGone(open.activity, d.id, presentUsers, "activity", ended_at, "snapshot_missing")
         : []),
-      ...closeGone(open.voice, d.id, voiceUsers, "voice", ended_at),
+      ...closeGone(open.voice, d.id, voiceUsers, "voice", ended_at, "snapshot_missing"),
     ];
   return { guild, ops: [...applied, ...voiceApplied, ...closed] };
 }
 
-// Spec §6.3, GUILD_DELETE: an outage (`unavailable: true`) changes nothing here (apps/bot flips guilds.available); being removed closes every open row.
+// Spec §6.3, GUILD_DELETE: an outage (`unavailable: true`) changes nothing here (apps/bot flips guilds.available); being removed closes every open row of this guild.
 export function reduceGuildDelete(
   open: OpenRows,
   d: GuildDeleteSlice,
@@ -101,27 +97,11 @@ export function reduceGuildDelete(
   if (d.unavailable === true) {
     return [];
   }
+  // No keep-set: unlike reduceGuildCreate's snapshot, nobody survives a guild removal.
+  const keep = new Set<string>();
   return [
-    ...open.presence.map((row): SessionOp => ({
-      kind: "close",
-      table: "presence",
-      id: row.id,
-      ended_at: received_at,
-      end_reason: "guild_removed",
-    })),
-    ...open.activity.map((row): SessionOp => ({
-      kind: "close",
-      table: "activity",
-      id: row.id,
-      ended_at: received_at,
-      end_reason: "guild_removed",
-    })),
-    ...open.voice.map((row): SessionOp => ({
-      kind: "close",
-      table: "voice",
-      id: row.id,
-      ended_at: received_at,
-      end_reason: "guild_removed",
-    })),
+    ...closeGone(open.presence, d.id, keep, "presence", received_at, "guild_removed"),
+    ...closeGone(open.activity, d.id, keep, "activity", received_at, "guild_removed"),
+    ...closeGone(open.voice, d.id, keep, "voice", received_at, "guild_removed"),
   ];
 }

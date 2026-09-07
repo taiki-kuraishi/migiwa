@@ -174,4 +174,12 @@ describe("reduceGuildDelete", () => {
       { kind: "close", table: "voice", id: v.id, ended_at: NOW, end_reason: "guild_removed" },
     ]);
   });
+
+  // Spec §6.3, GUILD_DELETE: "この guild の open 行を全部 close" — a different guild's open rows must survive this guild being removed, the same way reduceGuildCreate's snapshot reconciliation only ever touches this guild's own rows.
+  test("does not close another guild's open rows when this guild is removed", () => {
+    const otherGuild = presenceRow({ guild_id: "g2", user_id: "u9" });
+    expect(
+      reduceGuildDelete({ presence: [otherGuild], activity: [], voice: [] }, { id: "g1" }, NOW),
+    ).toEqual([]);
+  });
 });
