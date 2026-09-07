@@ -1,4 +1,4 @@
-import { evictDurableObject, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
+import { runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { afterEach, expect, test } from "vitest";
 
@@ -11,11 +11,10 @@ import { mockDiscord, waitFor } from "./mock-discord/client";
 // Non-hibernatable outbound socket forcibly dropped mid-connection). The socket to Discord can
 // Never hibernate (spec §12), so evictDurableObject() hangs its full test timeout draining that
 // Subrequest instead of completing — see closeLiveSocket()'s comment in mock-discord/cleanup.ts.
-// Every test below closes the socket first, so the eviction they exercise only ever discards
-// Already-idle in-memory state (this.connecting, a null this.socket), never a live connection.
-// That gap is a property of this test harness, not of BotObject: the op-7 and ordinary-close
-// Tests already exercise the same storage-driven RESUME branch that a real evict-while-connected
-// Would fall back to.
+// No test below calls evictDurableObject() for this reason. The storage-driven RESUME branch a
+// Real evict-while-connected would fall back to is still covered — by the op-7, ordinary-close,
+// And ensureConnected tests below, each driving it from a different caller, always through a
+// Socket that's already closed rather than a live one.
 
 const state = async () => {
     const report = await botStub(env).status();
@@ -54,6 +53,10 @@ test("op 7 Reconnect closes the socket and resumes at once with session id and s
   const frames = await resumes();
   expect(frames[0]?.d).toEqual({ token: "test-token", session_id: "sess-1", seq: 1 });
   await waitFor(async () => (await state()) === "connected");
+  // Constrains dropSocket()'s close code: 1000/1001 instead of RECONNECT_CLOSE_CODE would flip
+  // The mock's `resumable` to false (see worker.js's onSocketClose()), rejecting this RESUME and
+  // Forcing a fallback IDENTIFY once the backoff it lands in gets driven forward.
+  expect(await identifies()).toEqual([]);
 });
 
 // The mock only accepts a RESUME while `options.resumable` is true (see mock-discord/worker.js's
@@ -75,18 +78,14 @@ test("op 7 Reconnect with a rejected session forgets it and identifies afresh", 
   await waitFor(async () => (await state()) === "connected");
 });
 
-test("a fresh instance rebuilds from storage and resumes instead of identifying", async () => {
+test("ensureConnected recovers a backed-off connection with a RESUME, not only the alarm", async () => {
   await connectAndWait();
-  // Eviction itself must not be what closes the socket (see the file header): close it first so
-  // EvictDurableObject() only has to reset in-memory state, not drain a live socket it can't
-  // Hibernate. That close is an ordinary (resumable) disconnect, so it lands the object in a
-  // Short backoff with the session intact; expireBackoff() makes the next ensureConnected()
-  // Deterministic instead of racing real wall-clock time against that backoff window. Eviction
-  // Is still what's under test: it forces a genuinely new instance (constructor, migrations, a
-  // Fresh `this.connecting`) to be the one that reads storage and decides to RESUME, not just the
-  // Same instance with two fields cleared.
+  // An ordinary (resumable) disconnect: lands the object in a short backoff with the session
+  // Intact. expireBackoff() makes the next ensureConnected() deterministic instead of racing
+  // Real wall-clock time against that window. Unlike "an ordinary close backs off, then the
+  // Alarm resumes" below, nothing here calls runDurableObjectAlarm(): this is the cron
+  // Watchdog's own entry point recovering the connection, a different caller than the alarm.
   await closeLiveSocket();
-  await evictDurableObject(botStub(env));
   await expireBackoff();
   await botStub(env).ensureConnected();
   await waitFor(async () => {
