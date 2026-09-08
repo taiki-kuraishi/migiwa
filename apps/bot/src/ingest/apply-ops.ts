@@ -35,7 +35,7 @@ function applyUpdate(db: DatabaseClient, op: Extract<SessionOp, { kind: "update"
 
 // Turns the sessionizer's ops into Drizzle statements. Called inside the dispatch transaction,
 // So a failure rolls back the whole event (spec §6.4). Ops run in array order: a voice move or a
-// Presence status_change hands close before the matching open for the same (guild_id, user_id),
+// Presence status_change emits its close before its matching open for the same (guild_id, user_id),
 // And each partial unique index (`WHERE ended_at IS NULL`) is checked statement-by-statement, so
 // Opening ahead of the close it depends on collides with it instead of succeeding.
 export function applyOps(db: DatabaseClient, ops: SessionOp[]): void {
