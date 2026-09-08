@@ -9,10 +9,10 @@ import { afterEach, expect, test, vi } from "vitest";
 import type { BotObject } from "../src/bot-object";
 
 import { botStub } from "../src/bot-stub";
-import { readGateway } from "../src/gateway-state";
+import { readGateway, writeGateway } from "../src/gateway-state";
 import { guildFilter, ingestDispatch } from "../src/ingest/dispatch";
-import { connectAndWait, POLL, state } from "./helpers";
-import { resetBot } from "./mock-discord/cleanup";
+import { connectAndWait, POLL, state, store, waitForState } from "./helpers";
+import { closeLiveSocket, resetBot } from "./mock-discord/cleanup";
 import { mockDiscord } from "./mock-discord/client";
 
 const seq = async () =>
@@ -22,6 +22,13 @@ const seq = async () =>
     ),
   rows = async <T>(pick: (instance: BotObject) => T): Promise<T> =>
     runInDurableObject(botStub(env), (instance) => pick(instance)),
+  // Mirrors reconnect.spec.ts's own local helper: makes the next alarm's reconnect deterministic
+  // Instead of racing real wall-clock time against the backoff window.
+  expireBackoff = async () =>
+    runInDurableObject(botStub(env), (_instance, ctx) => {
+      const current = readGateway(ctx.storage.kv, Date.now());
+      writeGateway(ctx.storage.kv, { ...current, backoff_until: Date.now() - 1 });
+    }),
   voiceState = (user_id: string, channel_id: string | null) => ({
     guild_id: "g1",
     user_id,
@@ -96,7 +103,9 @@ test("VOICE_STATE_UPDATE opens and then closes a voice session", async () => {
   await mockDiscord.send({ op: 0, s: 2, t: "VOICE_STATE_UPDATE", d: voiceState("u1", "c1") });
   await mockDiscord.send({ op: 0, s: 3, t: "VOICE_STATE_UPDATE", d: voiceState("u1", null) });
   await vi.waitFor(async () => expect(await seq()).toBe(3), POLL);
-  const voice = await rows((instance) => instance.db.select().from(voice_sessions).all());
+  const voice = await rows((instance) =>
+    instance.db.select().from(voice_sessions).where(eq(voice_sessions.guild_id, "g1")).all(),
+  );
   expect(voice).toMatchObject([{ channel_id: "c1", end_reason: "leave" }]);
 });
 
@@ -214,6 +223,38 @@ test("GUILD_CREATE upserts the guild and opens sessions from the snapshot", asyn
   ]);
 });
 
+// B4: GuildUpsert (what reduceGuildCreate returns as `guild`) has no first_seen_at field, so
+// .onConflictDoUpdate()'s `set: guild` never touches the column a second GUILD_CREATE for the
+// Same guild lands on; only the insert's own `first_seen_at: received_at` ever sets it.
+test("first_seen_at survives a second GUILD_CREATE, last_snapshot_at does not", async () => {
+  await runInDurableObject(botStub(env), (instance) => {
+    const snapshot = (received_at: number) =>
+      ingestDispatch(
+        instance.db,
+        {
+          t: "GUILD_CREATE",
+          s: 1,
+          d: {
+            id: "gfs",
+            name: "Guild",
+            member_count: 0,
+            large: false,
+            presences: [],
+            voice_states: [],
+          },
+        },
+        received_at,
+        null,
+        () => true,
+      );
+    snapshot(10);
+    snapshot(20);
+    expect(instance.db.select().from(guilds).where(eq(guilds.guild_id, "gfs")).all()).toMatchObject(
+      [{ first_seen_at: 10, last_snapshot_at: 20 }],
+    );
+  });
+});
+
 // Ruling 2: ingestDispatch forwards `disconnected_at` straight to reduceGuildCreate's snapshot
 // Reconciliation, so a user absent from the snapshot closes at the disconnect time, not at
 // `received_at`. Called directly (no socket) because onDispatch's own awaySince computation
@@ -264,6 +305,48 @@ test("ingestDispatch falls back to received_at when disconnected_at is null", as
     expect(rowFor("u1")).toMatchObject([{ ended_at: 100, end_reason: "snapshot_missing" }]);
     expect(rowFor("u2")).toMatchObject([{ ended_at: null }]);
   });
+});
+
+// B2: pins BotObject.ingestOne actually forwarding snapshotDisconnectedAt(store, now) into
+// IngestDispatch — the two tests above call ingestDispatch directly and never touch that wiring,
+// So replacing the real call with `null` left every other test in this file green (wave 12
+// Review, Important 2).
+test("a reconnect's disconnected_at closes a snapshot-missing row, not received_at", async () => {
+  await connectAndWait();
+  await runInDurableObject(botStub(env), (instance) => {
+    instance.db
+      .insert(presence_sessions)
+      .values({ guild_id: "g2", user_id: "gone", status: "online", started_at: 1 })
+      .run();
+  });
+  await closeLiveSocket();
+  const { disconnected_at: disconnectedAt } = await store();
+  await expireBackoff();
+  await runDurableObjectAlarm(botStub(env));
+  await waitForState("connected");
+  await mockDiscord.send({
+    op: 0,
+    s: 3,
+    t: "GUILD_CREATE",
+    d: {
+      id: "g2",
+      name: "Guild",
+      member_count: 1,
+      large: false,
+      presences: [{ user: { id: "still-here" }, guild_id: "g2", status: "online", activities: [] }],
+      voice_states: [],
+    },
+  });
+  await vi.waitFor(async () => expect(await seq()).toBe(3), POLL);
+  expect(
+    await rows((instance) =>
+      instance.db
+        .select()
+        .from(presence_sessions)
+        .where(and(eq(presence_sessions.guild_id, "g2"), eq(presence_sessions.user_id, "gone")))
+        .all(),
+    ),
+  ).toMatchObject([{ ended_at: disconnectedAt, end_reason: "snapshot_missing" }]);
 });
 
 // Direct-call, in the style of the two tests above. `gd2` is the second guild the "second id in
@@ -415,9 +498,15 @@ async function expectIdleHeartbeatLogsNothing(logSpy: {
 }
 
 // Pins flushCounters() being called from the top of sendHeartbeat() (spec §9): counters
-// Accumulated since the last heartbeat come out as exactly one "ingest" log line, then are
-// Cleared so an idle heartbeat logs nothing.
+// Accumulated since the last heartbeat come out in an "ingest" log line, then are cleared so an
+// Idle heartbeat logs nothing. The spy is installed before connectAndWait(), not after: with a
+// 200ms heartbeat interval, a real alarm can otherwise flush (and clear) the counters before the
+// Spy is listening, and the length-1 wait below would then never see a line to match (wave 12
+// Review, Important 1 — failed 2 of 3 full runs). Asserting on the ingest line's contents, not on
+// Exactly one line appearing after the spy, tolerates a heartbeat firing more than once.
 test("ingest outcomes are flushed as one ingest log line per heartbeat, then cleared", async () => {
+  const logSpy = vi.spyOn(console, "log"),
+    triggerHeartbeat = async () => runDurableObjectAlarm(botStub(env));
   await mockDiscord.options({ heartbeatInterval: 200 });
   await connectAndWait();
   await mockDiscord.send({
@@ -427,13 +516,12 @@ test("ingest outcomes are flushed as one ingest log line per heartbeat, then cle
     d: { user: { id: "u1" }, guild_id: "g1", status: "online", activities: [] },
   });
   await vi.waitFor(async () => expect(await seq()).toBe(2), POLL);
-  const logSpy = vi.spyOn(console, "log"),
-    triggerHeartbeat = async () => runDurableObjectAlarm(botStub(env));
   await vi.waitFor(async () => {
     await triggerHeartbeat();
-    expect(loggedIngestLines(logSpy)).toHaveLength(1);
+    expect(loggedIngestLines(logSpy)).toContainEqual(
+      expect.objectContaining({ "PRESENCE_UPDATE:ingested": 1 }),
+    );
   }, POLL);
-  expect(loggedIngestLines(logSpy)[0]).toMatchObject({ "PRESENCE_UPDATE:ingested": 1 });
   await expectIdleHeartbeatLogsNothing(logSpy);
   logSpy.mockRestore();
 });
