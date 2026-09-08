@@ -3,7 +3,7 @@ import type { GuildCreateSlice, ValidatedDispatch } from "@migiwa/gateway";
 import { events, guilds, presence_sessions, voice_sessions } from "@migiwa/db";
 import { runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { env } from "cloudflare:workers";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { afterEach, expect, test, vi } from "vitest";
 
 import type { BotObject } from "../src/bot-object";
@@ -11,7 +11,6 @@ import type { BotObject } from "../src/bot-object";
 import { botStub } from "../src/bot-stub";
 import { readGateway } from "../src/gateway-state";
 import { guildFilter, ingestDispatch } from "../src/ingest/dispatch";
-import { loadOpenRows } from "../src/ingest/open-rows";
 import { connectAndWait, POLL, state } from "./helpers";
 import { resetBot } from "./mock-discord/cleanup";
 import { mockDiscord } from "./mock-discord/client";
@@ -76,8 +75,16 @@ test("PRESENCE_UPDATE opens a presence session, stores the raw event and advance
     },
   });
   await vi.waitFor(async () => expect(await seq()).toBe(2), POLL);
-  const presence = await rows((instance) => instance.db.select().from(presence_sessions).all()),
-    raw = await rows((instance) => instance.db.select().from(events).all());
+  const presence = await rows((instance) =>
+      instance.db
+        .select()
+        .from(presence_sessions)
+        .where(eq(presence_sessions.guild_id, "g1"))
+        .all(),
+    ),
+    raw = await rows((instance) =>
+      instance.db.select().from(events).where(eq(events.guild_id, "g1")).all(),
+    );
   expect(presence).toMatchObject([
     { guild_id: "g1", user_id: "u1", status: "online", client_desktop: "online", ended_at: null },
   ]);
@@ -121,38 +128,39 @@ test("a guild outside DISCORD_GUILD_IDS only advances seq", async () => {
   ).toEqual([]);
 });
 
-// Same persistence note as above: scoped to (guild_id, user_id) so test2's leftover g1/u1 row
-// Cannot make this pass by accident, per the "second id in fixtures" rule.
+// `g2` (also in DISCORD_GUILD_IDS) is untouched by every other test in this file, so the whole
+// Guild's presence_sessions is exactly this test's own state: if validateDispatch()'s
+// Requiredness check on `user` ever regressed and let the malformed payload through,
+// `ingestPresence` would open a second row here and this array would have length 2, not 1.
 test("a payload without the required ids is dropped and the socket stays up", async () => {
   await connectAndWait();
   await mockDiscord.send({
     op: 0,
     s: 2,
     t: "PRESENCE_UPDATE",
-    d: { guild_id: "g1", status: "online" },
+    d: { guild_id: "g2", status: "online" },
   });
   await mockDiscord.send({
     op: 0,
     s: 3,
     t: "PRESENCE_UPDATE",
-    d: { user: { id: "u2" }, guild_id: "g1", status: "idle", activities: [] },
+    d: { user: { id: "u2" }, guild_id: "g2", status: "idle", activities: [] },
   });
   await vi.waitFor(async () => expect(await seq()).toBe(3), POLL);
   expect(await state()).toBe("connected");
-  const u2 = await rows((instance) =>
-    instance.db
-      .select()
-      .from(presence_sessions)
-      .where(and(eq(presence_sessions.guild_id, "g1"), eq(presence_sessions.user_id, "u2")))
-      .all(),
+  const g2Presence = await rows((instance) =>
+    instance.db.select().from(presence_sessions).where(eq(presence_sessions.guild_id, "g2")).all(),
   );
-  expect(u2).toMatchObject([{ user_id: "u2" }]);
+  expect(g2Presence).toMatchObject([{ user_id: "u2" }]);
 });
 
-// Same persistence note: presence/voice are read through loadOpenRows (open rows only), so
-// Test2's/test5's now-superseded g1 rows do not appear even though they are still in the table
-// (Reconciliation itself already closed them by end_reason snapshot_missing). Events has no such
-// "open" filter, so its check is scoped to this guild and event type instead.
+// Same persistence note: presence/voice are read directly (not through loadOpenRows, the same
+// Helper ingestGuildCreate calls internally — "Fixtures obtained through the code under test"),
+// Scoped to this guild and `ended_at IS NULL`, so test2's/test5's now-superseded g1 rows do not
+// Appear even though they are still in the table (reconciliation already closed them with
+// End_reason snapshot_missing). Events has no such "open" filter, so its check is scoped to this
+// Guild and event type instead. The guilds check is scoped too, even though this is currently the
+// Only test writing to that table via the dispatch path.
 test("GUILD_CREATE upserts the guild and opens sessions from the snapshot", async () => {
   await connectAndWait();
   await mockDiscord.send({
@@ -169,7 +177,20 @@ test("GUILD_CREATE upserts the guild and opens sessions from the snapshot", asyn
     },
   });
   await vi.waitFor(async () => expect(await seq()).toBe(2), POLL);
-  const open = await rows((instance) => loadOpenRows(instance.db, "g1")),
+  const openPresence = await rows((instance) =>
+      instance.db
+        .select()
+        .from(presence_sessions)
+        .where(and(eq(presence_sessions.guild_id, "g1"), isNull(presence_sessions.ended_at)))
+        .all(),
+    ),
+    openVoice = await rows((instance) =>
+      instance.db
+        .select()
+        .from(voice_sessions)
+        .where(and(eq(voice_sessions.guild_id, "g1"), isNull(voice_sessions.ended_at)))
+        .all(),
+    ),
     raw = await rows((instance) =>
       instance.db
         .select()
@@ -177,11 +198,13 @@ test("GUILD_CREATE upserts the guild and opens sessions from the snapshot", asyn
         .where(and(eq(events.guild_id, "g1"), eq(events.type, "GUILD_CREATE")))
         .all(),
     );
-  expect(await rows((instance) => instance.db.select().from(guilds).all())).toMatchObject([
-    { guild_id: "g1", name: "Guild", member_count: 3, available: true },
-  ]);
-  expect(open.presence).toMatchObject([{ user_id: "u1", status: "dnd" }]);
-  expect(open.voice).toMatchObject([{ user_id: "u2", channel_id: "c1" }]);
+  expect(
+    await rows((instance) =>
+      instance.db.select().from(guilds).where(eq(guilds.guild_id, "g1")).all(),
+    ),
+  ).toMatchObject([{ guild_id: "g1", name: "Guild", member_count: 3, available: true }]);
+  expect(openPresence).toMatchObject([{ user_id: "u1", status: "dnd" }]);
+  expect(openVoice).toMatchObject([{ user_id: "u2", channel_id: "c1" }]);
   expect(raw).toMatchObject([
     {
       type: "GUILD_CREATE",
@@ -243,32 +266,124 @@ test("ingestDispatch falls back to received_at when disconnected_at is null", as
   });
 });
 
+// Direct-call, in the style of the two tests above. `gd2` is the second guild the "second id in
+// Fixtures" rule wants: it pins that GUILD_DELETE only touches the guild named in `d.id`.
+// Decision 4: GUILD_DELETE writes no `events` row (deliberate asymmetry with GUILD_CREATE).
+test("GUILD_DELETE (removed) closes open sessions, flips available, and writes no events row", async () => {
+  await runInDurableObject(botStub(env), (instance) => {
+    instance.db
+      .insert(guilds)
+      .values([
+        { guild_id: "gd1", name: "G1", first_seen_at: 1, available: true },
+        { guild_id: "gd2", name: "G2", first_seen_at: 1, available: true },
+      ])
+      .run();
+    instance.db
+      .insert(presence_sessions)
+      .values([
+        { guild_id: "gd1", user_id: "u1", status: "online", started_at: 1 },
+        { guild_id: "gd2", user_id: "u1", status: "online", started_at: 1 },
+      ])
+      .run();
+    const outcome = ingestDispatch(
+      instance.db,
+      { t: "GUILD_DELETE", s: 1, d: { id: "gd1" } },
+      50,
+      null,
+      () => true,
+    );
+    expect(outcome).toBe("ingested");
+    expect(instance.db.select().from(guilds).where(eq(guilds.guild_id, "gd1")).all()).toMatchObject(
+      [{ available: false }],
+    );
+    expect(
+      instance.db
+        .select()
+        .from(presence_sessions)
+        .where(eq(presence_sessions.guild_id, "gd1"))
+        .all(),
+    ).toMatchObject([{ ended_at: 50, end_reason: "guild_removed" }]);
+    // `gd2` (the second guild) stays untouched: pins the predicate on `d.id`.
+    expect(instance.db.select().from(guilds).where(eq(guilds.guild_id, "gd2")).all()).toMatchObject(
+      [{ available: true }],
+    );
+    expect(
+      instance.db
+        .select()
+        .from(presence_sessions)
+        .where(eq(presence_sessions.guild_id, "gd2"))
+        .all(),
+    ).toMatchObject([{ ended_at: null }]);
+    expect(instance.db.select().from(events).where(eq(events.guild_id, "gd1")).all()).toEqual([]);
+  });
+});
+
+// Spec §6.3: an outage (`unavailable: true`) still flips `guilds.available`, but leaves open
+// Sessions open — the opposite of the "removed" case above.
+test("GUILD_DELETE (outage) flips available but leaves open sessions open", async () => {
+  await runInDurableObject(botStub(env), (instance) => {
+    instance.db
+      .insert(guilds)
+      .values({ guild_id: "gd3", name: "G3", first_seen_at: 1, available: true })
+      .run();
+    instance.db
+      .insert(presence_sessions)
+      .values({ guild_id: "gd3", user_id: "u1", status: "online", started_at: 1 })
+      .run();
+    ingestDispatch(
+      instance.db,
+      { t: "GUILD_DELETE", s: 1, d: { id: "gd3", unavailable: true } },
+      50,
+      null,
+      () => true,
+    );
+    expect(instance.db.select().from(guilds).where(eq(guilds.guild_id, "gd3")).all()).toMatchObject(
+      [{ available: false }],
+    );
+    expect(
+      instance.db
+        .select()
+        .from(presence_sessions)
+        .where(eq(presence_sessions.guild_id, "gd3"))
+        .all(),
+    ).toMatchObject([{ ended_at: null }]);
+  });
+});
+
 // Reads what log() actually wrote, without an unsafe assertion off console.log's `any` args:
-// JSON.parse's return is narrowed by the type guard below instead of a cast.
-function loggedIngestLine(logSpy: {
-  mock: { calls: unknown[][] };
-}): Record<string, unknown> | undefined {
+// JSON.parse's return is narrowed by the type guard below instead of a cast. try/catch, not a
+// Bare JSON.parse: a non-JSON console.log call (there are several elsewhere in this suite) must
+// Be skipped, not thrown through and fail the test.
+function loggedIngestLines(logSpy: { mock: { calls: unknown[][] } }): Record<string, unknown>[] {
   return logSpy.mock.calls
-    .map(([line]): unknown => JSON.parse(String(line)))
+    .map(([line]): unknown => {
+      try {
+        return JSON.parse(String(line));
+      } catch {
+        return undefined;
+      }
+    })
     .filter(
       (entry): entry is Record<string, unknown> => typeof entry === "object" && entry !== null,
     )
-    .find((entry) => entry.event === "ingest");
+    .filter((entry) => entry.event === "ingest");
 }
 
-// Split out of the test below to stay under the statement-count limit.
+// Split out of the test below to stay under the statement-count limit. Asserts the alarm actually
+// Ran (not just that nothing new was logged) — runDurableObjectAlarm() returns false with no
+// Alarm scheduled, which would make the "logs nothing" check pass vacuously.
 async function expectIdleHeartbeatLogsNothing(logSpy: {
   mock: { calls: unknown[][] };
   mockClear: () => void;
 }): Promise<void> {
   logSpy.mockClear();
-  await runDurableObjectAlarm(botStub(env));
-  expect(loggedIngestLine(logSpy)).toBeUndefined();
+  expect(await runDurableObjectAlarm(botStub(env))).toBe(true);
+  expect(loggedIngestLines(logSpy)).toEqual([]);
 }
 
-// Pins flushCounters() being called from sendHeartbeat() (spec §9): counters accumulated since
-// The last heartbeat come out as one "ingest" log line, then are cleared so an idle heartbeat
-// Logs nothing.
+// Pins flushCounters() being called from the top of sendHeartbeat() (spec §9): counters
+// Accumulated since the last heartbeat come out as exactly one "ingest" log line, then are
+// Cleared so an idle heartbeat logs nothing.
 test("ingest outcomes are flushed as one ingest log line per heartbeat, then cleared", async () => {
   await mockDiscord.options({ heartbeatInterval: 200 });
   await connectAndWait();
@@ -283,9 +398,9 @@ test("ingest outcomes are flushed as one ingest log line per heartbeat, then cle
     triggerHeartbeat = async () => runDurableObjectAlarm(botStub(env));
   await vi.waitFor(async () => {
     await triggerHeartbeat();
-    expect(loggedIngestLine(logSpy)).toBeDefined();
+    expect(loggedIngestLines(logSpy)).toHaveLength(1);
   }, POLL);
-  expect(loggedIngestLine(logSpy)).toMatchObject({ "PRESENCE_UPDATE:ingested": 1 });
+  expect(loggedIngestLines(logSpy)[0]).toMatchObject({ "PRESENCE_UPDATE:ingested": 1 });
   await expectIdleHeartbeatLogsNothing(logSpy);
   logSpy.mockRestore();
 });

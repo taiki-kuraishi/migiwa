@@ -428,10 +428,10 @@ export class BotObject extends DurableObject {
   }
 
   private sendHeartbeat(now: number): void {
+    this.flushCounters();
     if (this.socket === null || this.heartbeat === null) {
       return;
     }
-    this.flushCounters();
     const { kv } = this.ctx.storage,
       store = readGateway(kv, now);
     this.socket.send(heartbeatPayload(store.seq));
