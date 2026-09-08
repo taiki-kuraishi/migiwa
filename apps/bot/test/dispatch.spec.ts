@@ -159,8 +159,8 @@ test("a payload without the required ids is dropped and the socket stays up", as
 // Scoped to this guild and `ended_at IS NULL`, so test2's/test5's now-superseded g1 rows do not
 // Appear even though they are still in the table (reconciliation already closed them with
 // End_reason snapshot_missing). Events has no such "open" filter, so its check is scoped to this
-// Guild and event type instead. The guilds check is scoped too, even though this is currently the
-// Only test writing to that table via the dispatch path.
+// Guild and event type instead. The guilds check is scoped too, since the GUILD_DELETE tests
+// Below also write to that table (for their own guild ids, but scoping here costs nothing).
 test("GUILD_CREATE upserts the guild and opens sessions from the snapshot", async () => {
   await connectAndWait();
   await mockDiscord.send({
@@ -345,6 +345,39 @@ test("GUILD_DELETE (outage) flips available but leaves open sessions open", asyn
         .select()
         .from(presence_sessions)
         .where(eq(presence_sessions.guild_id, "gd3"))
+        .all(),
+    ).toMatchObject([{ ended_at: null }]);
+  });
+});
+
+// The `allow` gate: neither GUILD_DELETE test above ever passes a filter that returns false, so
+// Deleting `dispatch.ts`'s `if (!allow(d.id)) return "ignored";` would fail nothing until now.
+test("GUILD_DELETE ignores a guild the filter rejects", async () => {
+  await runInDurableObject(botStub(env), (instance) => {
+    instance.db
+      .insert(guilds)
+      .values({ guild_id: "gd4", name: "G4", first_seen_at: 1, available: true })
+      .run();
+    instance.db
+      .insert(presence_sessions)
+      .values({ guild_id: "gd4", user_id: "u1", status: "online", started_at: 1 })
+      .run();
+    const outcome = ingestDispatch(
+      instance.db,
+      { t: "GUILD_DELETE", s: 1, d: { id: "gd4" } },
+      50,
+      null,
+      (id) => id !== "gd4",
+    );
+    expect(outcome).toBe("ignored");
+    expect(instance.db.select().from(guilds).where(eq(guilds.guild_id, "gd4")).all()).toMatchObject(
+      [{ available: true }],
+    );
+    expect(
+      instance.db
+        .select()
+        .from(presence_sessions)
+        .where(eq(presence_sessions.guild_id, "gd4"))
         .all(),
     ).toMatchObject([{ ended_at: null }]);
   });
