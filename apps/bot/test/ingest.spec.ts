@@ -130,6 +130,13 @@ test("update patches only the given flags", async () => {
     ]);
     // Pins the id predicate: without `.where(eq(id, op.id))` this update would also patch u2's row.
     expect(loadOpenRows(instance.db, "gu", "u2").voice).toMatchObject([{ self_mute: false }]);
+
+    applyOps(instance.db, [
+      { kind: "close", table: "voice", id: row.id, ended_at: 9, end_reason: "leave" },
+    ]);
+    expect(loadOpenRows(instance.db, "gu", "u1").voice).toEqual([]);
+    // Pins the id predicate: without `.where(eq(id, op.id))` this close would also end u2's row.
+    expect(loadOpenRows(instance.db, "gu", "u2").voice).toMatchObject([{ self_mute: false }]);
   });
 });
 
