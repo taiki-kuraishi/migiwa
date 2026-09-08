@@ -24,6 +24,7 @@
       "dependencies": {
         "@migiwa/db": "workspace:*",
         "@migiwa/gateway": "workspace:*",
+        "@migiwa/sessionizer": "workspace:*",
         "better-result": "catalog:",
         "drizzle-orm": "catalog:",
         "hono": "catalog:",
