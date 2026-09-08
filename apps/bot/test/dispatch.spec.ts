@@ -320,9 +320,14 @@ test("a reconnect's disconnected_at closes a snapshot-missing row, not received_
       .run();
   });
   await closeLiveSocket();
+  // OnClose() runs on the socket's own async close event, not inside closeLiveSocket() itself
+  // (mirrors reconnect.spec.ts's "op 7 Reconnect with a rejected session…" ~L53-55): wait for
+  // The state it sets before reading disconnected_at, or this read can race it.
+  await waitForState("backoff");
   const { disconnected_at: disconnectedAt } = await store();
-  await expireBackoff();
-  await runDurableObjectAlarm(botStub(env));
+  // One statement (stays under max-statements): order still matters, so chained rather than
+  // Two separate awaits — expireBackoff() must land before the alarm reads backoff_until.
+  await expireBackoff().then(async () => runDurableObjectAlarm(botStub(env)));
   await waitForState("connected");
   await mockDiscord.send({
     op: 0,
@@ -504,7 +509,7 @@ async function expectIdleHeartbeatLogsNothing(logSpy: {
 // Spy is listening, and the length-1 wait below would then never see a line to match (wave 12
 // Review, Important 1 — failed 2 of 3 full runs). Asserting on the ingest line's contents, not on
 // Exactly one line appearing after the spy, tolerates a heartbeat firing more than once.
-test("ingest outcomes are flushed as one ingest log line per heartbeat, then cleared", async () => {
+test("ingest outcomes are flushed in an ingest log line per heartbeat, then cleared", async () => {
   const logSpy = vi.spyOn(console, "log"),
     triggerHeartbeat = async () => runDurableObjectAlarm(botStub(env));
   await mockDiscord.options({ heartbeatInterval: 200 });
