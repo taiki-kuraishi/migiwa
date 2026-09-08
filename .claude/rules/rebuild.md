@@ -155,6 +155,12 @@ list, a test name — the plan is updated in the same PR, including snippets in 
 import the thing that changed. Wave 9 deleted `waitFor()`; three plan snippets, one in Wave 12,
 still imported it until the re-review caught them.
 
+Following the code means the shapes — exports, signatures, file lists, test names, the one
+non-obvious line — not a byte-identical copy of the file. Once a task has landed, the file is
+the source of truth; a full copy in the plan (513 lines in wave 11) doubles every later
+formatting change and reviewers stop reading it. Trim landed snippets to their shapes when the
+wave that owns them closes.
+
 ## A Durable Object holding a live outbound socket cannot be evicted
 
 `evictDurableObject()` hangs on an object whose outbound WebSocket is still open — the socket
@@ -194,3 +200,27 @@ a line number is stale by the next PR. The same goes for citations of code that 
 may reshape — name the file and symbol, and re-check the citation when that wave lands (wave 9
 turned Task 13's `switch` into an if/else chain and the Global Constraints kept citing the
 switch).
+
+## The spec outranks a plan snippet
+
+A plan snippet is a sketch of the spec, not a second spec. When the two disagree, implement the
+spec and fix the snippet in the same wave; do not implement the snippet and file the spec as a
+follow-up. Wave 11's Task 19 snippet closed open rows of every guild while spec §6.3 said this
+guild only — the worker caught it because it read the spec sentence, not because the snippet
+looked wrong.
+
+## A row's end never precedes its start
+
+Any close path that stamps `ended_at` from a clock outside the row — `disconnected_at`, a
+snapshot time, anything that is not `received_at` of the closing event — clamps it to the row's
+own `started_at`. Wave 11's reconciliation could otherwise write a negative-duration session
+when a guild recovered within the snapshot window after a reconnect. The clamp lives in the
+shared close helper, not at each caller.
+
+## A predicate over ids needs a second id in the fixture
+
+A test suite whose fixtures use one `guild_id` and one `user_id` cannot pin a
+`(guild_id, user_id)` match: drop either half of the predicate and everything stays green.
+Every reducer suite carries at least one row from another guild and another user, asserted
+untouched. Wave 11 shipped `reduceVoice` with its guild check unpinned and a DONE report
+claiming it was pinned indirectly; the reversal proved otherwise.
