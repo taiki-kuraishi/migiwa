@@ -10,6 +10,7 @@ import {
   initialGatewayStore,
   readGateway,
   recordReconnect,
+  snapshotDisconnectedAt,
   toStatusReport,
   withStatus,
   writeGateway,
@@ -33,6 +34,30 @@ test("withStatus records when a connected session was lost", () => {
   expect(connected.disconnected_at).toBeNull();
   expect(lost.disconnected_at).toBe(20);
   expect(withStatus(lost, "backoff", "close_1006", 30)).toBe(lost);
+});
+
+test("snapshotDisconnectedAt is null when nothing was ever lost", () => {
+  expect(snapshotDisconnectedAt(initialGatewayStore(0), 1000)).toBeNull();
+});
+
+test("snapshotDisconnectedAt returns disconnected_at inside the snapshot window", () => {
+  const lost = withStatus(
+    withStatus(initialGatewayStore(0), "connected", null, 0),
+    "backoff",
+    "close_1006",
+    100,
+  );
+  expect(snapshotDisconnectedAt(lost, 100 + 299_999)).toBe(100);
+});
+
+test("snapshotDisconnectedAt falls back to null once the snapshot window has passed", () => {
+  const lost = withStatus(
+    withStatus(initialGatewayStore(0), "connected", null, 0),
+    "backoff",
+    "close_1006",
+    100,
+  );
+  expect(snapshotDisconnectedAt(lost, 100 + 300_000)).toBeNull();
 });
 
 test("clearSession forgets the session but keeps the budget", () => {

@@ -15,6 +15,8 @@
   "durable_objects": {
     "bindings": [{ "name": "BOT", "class_name": "BotObject" }],
   },
+  // DISCORD_GUILD_IDS: comma-separated guild ids to keep; empty keeps every guild (spec §8).
+  "vars": { "DISCORD_GUILD_IDS": "" },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["BotObject"] }],
   // Outer watchdog (spec §4): wakes the DO every minute in case its alarm chain died.
   "triggers": { "crons": ["* * * * *"] },
