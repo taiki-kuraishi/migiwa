@@ -208,10 +208,13 @@ DO の `alarm()` ハンドラは 1 つで、3 つの期限をメモリに持つ(
 
 `op 0` はすべて `seq` を更新する。イベントは 2 階層:
 
-- **内部イベント**: `READY`(`session_id`, `resume_gateway_url`, `bot_user_id` を保存)、
-  `RESUMED`、`GUILD_CREATE`、`GUILD_DELETE`。
-- **取り込み対象**: `PRESENCE_UPDATE`、`VOICE_STATE_UPDATE` のうち `guild_id` が guild フィルタ
-  (`DISCORD_GUILD_IDS`)を通るもの。それ以外の `t` は `seq` の更新だけして捨てる。
+- **内部イベント(gateway 状態のみ)**: `READY`(`session_id`, `resume_gateway_url`, `bot_user_id`
+  を保存)、`RESUMED`。guild フィルタは通らない。
+- **取り込み対象**: `PRESENCE_UPDATE` / `VOICE_STATE_UPDATE` / `GUILD_CREATE` / `GUILD_DELETE`
+  の 4 種類、いずれも guild id が guild フィルタ(`DISCORD_GUILD_IDS`)を通るものだけ処理する
+  (§6.3)。`GUILD_CREATE` は `guilds` の upsert・`events` への 1 行・セッション ops を書き、
+  `GUILD_DELETE` は `guilds.available` の更新とセッションの close だけで `events` には書かない
+  (§6.2)。それ以外の `t`(`OTHER` を含む)は `seq` の更新だけして捨てる。
 
 生 payload はログに出さない。出すのはイベント種別ごとの件数だけ。
 
@@ -267,7 +270,8 @@ slice 側で optional と宣言し、ここにそう書いている)。
 
 `GUILD_CREATE` の payload は `{ id, name, member_count, large, presences_count,
 voice_states_count }` に刈り込んで保存する。`PRESENCE_UPDATE` / `VOICE_STATE_UPDATE` は `d` を
-そのまま保存する。
+そのまま保存する。`GUILD_DELETE` は `events` に行を追加しない(意図的な非対称): guild の消失は
+`guilds.available` と、閉じたセッションの `end_reason: "guild_removed"` にすでに記録されている。
 
 意図的に捨てるもの: activity の `assets` / `party` / `secrets` / `buttons`(`events.payload` に
 7 日残る)、voice フラグの変更履歴、`client_status.vr`。
@@ -282,10 +286,10 @@ boolean は `integer({ mode: "boolean" })`、JSON は `text({ mode: "json" })`�
 
 | イベント | 規則 |
 |---|---|
-| `PRESENCE_UPDATE` | **status:** open 行の `status` が同じなら何もしない。違えば close(`status_change`、新 status が `offline` なら `offline`)し、新 status が `offline` でなければ新しい行を open。**activities:** payload の `(type, activity_key)` の集合を作り、集合に無い open 行を close(`activity_end`)、open 行が無いキーを open(`started_at` は Discord の `created_at`（`ActivitySlice` で必須。欠けた payload は D13 の検証で dispatch ごと捨てられ、`frame_dropped` として件数が log に残る）)、両方にあるキーは `state` / `details` を更新。`offline` は activity 行も全部 close する。 |
+| `PRESENCE_UPDATE` | **status:** open 行の `status` が同じなら何もしない。違えば close(`status_change`、新 status が `offline` なら `offline`)し、新 status が `offline` でなければ新しい行を open。**activities:** payload の `(type, activity_key)` の集合を作り、集合に無い open 行を close(`activity_end`)、open 行が無いキーを open(`started_at` は Discord の `created_at`（`ActivitySlice` で必須。欠けた payload は D13 の検証で dispatch ごと捨てられ、heartbeat ごとの `{"event":"ingest", …}` 行に `PRESENCE_UPDATE:dropped:<path>` として件数が残る))、両方にあるキーは `state` / `details` を更新。`offline` は activity 行も全部 close する。 |
 | `VOICE_STATE_UPDATE` | open 行なし ∧ `channel_id ≠ null` → open。open 行あり ∧ `channel_id = null` → close(`leave`)。open 行あり ∧ `channel_id` が違う → close(`move`)して open。同じチャンネル → フラグ更新のみ。 |
-| `GUILD_CREATE` | `guilds` を upsert(`available: true` にする。GUILD_DELETE の `available = 0` を戻す唯一の経路)。unavailable スタブ(`name` / `member_count` / `presences` を持たない)は slice の検証で弾かれ `frame_dropped` に数えられる(Discord は実際にはこれを GUILD_CREATE として送らない)。`presences[]` と `voice_states[]` を上の 2 規則で適用。その後**突き合わせ**: この guild の open 行のうち、スナップショットに居ない user を close(`snapshot_missing`、`ended_at` は `disconnected_at` があればそれ、無ければ `received_at`。ただし行自身の `started_at` を下回らないよう clamp する。この clamp は共有の
-close helper にあり、GUILD_DELETE 側の close にも適用されるが、そちらは `ended_at = received_at`
+| `GUILD_CREATE` | `guilds` を upsert(`available: true` にする。GUILD_DELETE の `available = 0` を戻す唯一の経路)。unavailable スタブ(`name` / `member_count` / `presences` を持たない)は slice の検証で弾かれ、同じく `GUILD_CREATE:dropped:<path>` として件数が残る(Discord は実際にはこれを GUILD_CREATE として送らない)。`presences[]` と `voice_states[]` を上の 2 規則で適用。その後**突き合わせ**: この guild の open 行のうち、スナップショットに居ない user を close(`snapshot_missing`、`ended_at` は `disconnected_at` があり、かつ再接続(`status_since`)から 5 分以内ならそれ、そうでなければ `received_at`。窓が要るのは `withStatus()` が `disconnected_at` を消さないため(ずっと後に参加した guild に古い切断時刻を刻まないため)。副作用: bot 再接続から 5 分以内に終わった guild 側の障害は bot の切断時刻で閉じる。`ended_at` は行自身の
+`started_at` を下回らないよう clamp する。この clamp は共有の close helper にあり、GUILD_DELETE 側の close にも適用されるが、そちらは `ended_at = received_at`
 なので実質 no-op)。この close 対象(スナップショットに居ない user)と上の open/update 対象(居る user)は user ごとに互いに排他なので、どちらを先に適用しても `*_open_uidx` には触れない。`member_count > 75,000` の guild は Discord が `presences` を刈り込むため、presence の突き合わせをスキップする(75,000 という数値自体は Discord の刈り込み挙動をなぞっただけで、本リポジトリの値から導いたものではない)。 |
 | `GUILD_DELETE` | `unavailable = true`(障害): `guilds.available = 0` にし、セッションは開けたまま。それ以外(bot が外された): この guild の open 行を全部 close(`guild_removed`)し、guild を unavailable にする。 |
 | `READY` / `RESUMED` | gateway 状態のみ更新。RESUME 成功後は replay されたイベントが通常の規則を通る。新規 IDENTIFY 後は `GUILD_CREATE` のスナップショットが補正を行う。 |
@@ -496,4 +500,4 @@ deploy は **Cloudflare Workers Builds**(ダッシュボードの GitHub 連携)
 | Discord Developer Policy はユーザー間の関係性のプロファイリングを禁止 | 「誰が誰と一緒だったか」系の機能は作らない。user × guild 単位の presence / voice / activity のみ |
 | Drizzle の DO ドライバが若い(#4322、#4558) | 同期トランザクションのみ、stable バージョン、migration 検証は `wrangler dev` |
 | MCP の `query` と Gateway の heartbeat が同じ DO を共有する。`readOnlyExec` は同期で `transactionSync` の中を回るので、重いクエリ(`randomblob(1e8)`、終了条件の無い再帰 CTE など。第 1 層も第 2 層も通る)は実行中 DO のイベントループを止め、alarm による heartbeat を遅らせてゾンビ判定 → 再接続を起こし得る(wave 7 の code review で指摘。2026-09-05) | v1 は spec §7.3 のとおり DO の CPU 制限を唯一の上限とし、呼び出し元は作者の MCP クライアント 1 つなので許容する。wave 9 の 24h PoC で重いクエリを意図的に投げて `reconnects_24h` への影響を計測し、影響が出るなら `rows_read` の上限かクエリの CPU 予算を §7.3 に足す |
-| 同期の `message` ハンドラが重くなり後続イベントが遅れる | セッション化は open 行 1〜数行との比較で O(log n)。GUILD_CREATE の突き合わせだけが guild 全体を舐めるが、IDENTIFY 直後にしか来ない |
+| 同期の `message` ハンドラが重くなり後続イベントが遅れる | `PRESENCE_UPDATE` / `VOICE_STATE_UPDATE` は open 行 1〜数行との比較で O(log n)。GUILD_CREATE の突き合わせは guild 全体の open 行を一度だけ `user_id` でバケット化し(O(n))、以降はスナップショットの各エントリがそのユーザーのバケットだけを見る。バケット化前はエントリごとに guild 全体を線形走査しており O(n²) だった(DO 計測: presence 10,000 件で 3.9 秒、no-op スナップショットに対して)。突き合わせ自体は IDENTIFY 直後にしか来ない |

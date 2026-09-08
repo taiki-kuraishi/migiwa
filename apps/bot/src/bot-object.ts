@@ -39,6 +39,7 @@ import { migrate } from "drizzle-orm/durable-sqlite/migrator";
 
 import type { ConnectError } from "./gateway-errors";
 import type { GatewayStore } from "./gateway-state";
+import type { GuildFilter } from "./ingest/dispatch";
 
 import { fetchGatewayBot, openGatewaySocket } from "./discord-rest";
 import { IdentifyBudgetExhausted, ShardingRequired } from "./gateway-errors";
@@ -46,10 +47,12 @@ import {
   clearSession,
   readGateway,
   recordReconnect,
+  snapshotDisconnectedAt,
   toStatusReport,
   withStatus,
   writeGateway,
 } from "./gateway-state";
+import { guildFilter, ingestDispatch } from "./ingest/dispatch";
 import { describeError, log } from "./log";
 import { readOnlyExec } from "./read-only-exec";
 
@@ -66,10 +69,16 @@ export class BotObject extends DurableObject {
   private socket: WebSocket | null = null;
   private heartbeat: HeartbeatState | null = null;
   private connecting: Promise<void> | null = null;
+  private readonly allowGuild: GuildFilter;
+  // Ingest outcomes since the last heartbeat, flushed as one log line (spec §9).
+  private readonly counters = new Map<string, number>();
 
   public constructor(ctx: DurableObjectState, env: Cloudflare.Env) {
     super(ctx, env);
     this.db = createDatabaseClient(ctx.storage);
+    // Wrangler.jsonc's declared default types this non-optional, but a deploy missing the var
+    // (Spec §8) must not take the object down; guildFilter() defaults a missing value itself.
+    this.allowGuild = guildFilter(env.DISCORD_GUILD_IDS);
     // Every RPC may assume the schema exists: blockConcurrencyWhile holds every other call on
     // This object until the callback settles. Drizzle's journal makes re-running it on each
     // Restart a no-op.
@@ -293,12 +302,13 @@ export class BotObject extends DurableObject {
     try {
       const parsed = parseGatewayMessage(data);
       if (parsed.isErr()) {
-        log("frame_dropped", { reason: parsed.error.reason });
+        this.count(`frame:${parsed.error.reason}`);
         return;
       }
       this.handleFrame(parsed.value, Date.now());
     } catch (error) {
       log("message_error", { message: describeError(error) });
+      this.count("frame:error");
     }
   }
 
@@ -310,7 +320,7 @@ export class BotObject extends DurableObject {
     if (message.op === GatewayOpcodes.Hello) {
       validateHello(message.d).match({
         ok: (hello) => this.onHello(hello.heartbeat_interval, now),
-        err: (error) => log("frame_dropped", { reason: `hello:${error.path}` }),
+        err: (error) => this.count(`hello:${error.path}`),
       });
     } else if (message.op === GatewayOpcodes.Heartbeat) {
       this.sendHeartbeat(now);
@@ -333,7 +343,7 @@ export class BotObject extends DurableObject {
     const dispatch = validateDispatch(message);
     this.onDispatch(message.s, dispatch.isOk() ? dispatch.value : null, now);
     if (dispatch.isErr()) {
-      log("frame_dropped", { reason: `${dispatch.error.event}:${dispatch.error.path}` });
+      this.count(`${dispatch.error.event}:dropped:${dispatch.error.path}`);
     }
   }
 
@@ -371,9 +381,9 @@ export class BotObject extends DurableObject {
     writeGateway(kv, { ...readGateway(kv, now), last_ack_at: now });
   }
 
-  // Every dispatch advances seq inside one transaction (spec §6.4); it stays limited to gateway
-  // KV state until a later task starts writing sessionizer rows into this same transaction
-  // (wave 12 in the plan). `dispatch` is null when validateDispatch() rejected `d`.
+  // One transaction per dispatch: seq, the raw event and the session ops commit together, so
+  // A RESUME after a crash replays exactly the events that were not applied (spec §6.4).
+  // `dispatch` is null when validateDispatch() rejected `d`.
   private onDispatch(seq: number, dispatch: ValidatedDispatch | null, now: number): void {
     const { kv } = this.ctx.storage;
     this.ctx.storage.transactionSync(() => {
@@ -402,11 +412,21 @@ export class BotObject extends DurableObject {
         );
         log("resumed", { seq });
       }
+      if (dispatch !== null) {
+        // `store` carries this dispatch's already-updated disconnected_at/status_since
+        // (READY/RESUMED above may have just changed them), which is what the snapshot window reads.
+        const awaySince = snapshotDisconnectedAt(store, now),
+          outcome = ingestDispatch(this.db, dispatch, now, awaySince, this.allowGuild),
+          label = dispatch.t === "OTHER" ? dispatch.name : dispatch.t,
+          gateway = dispatch.t === "READY" || dispatch.t === "RESUMED";
+        this.count(`${label}:${gateway ? "gateway" : outcome}`);
+      }
       writeGateway(kv, store);
     });
   }
 
   private sendHeartbeat(now: number): void {
+    this.flushCounters();
     if (this.socket === null || this.heartbeat === null) {
       return;
     }
@@ -415,6 +435,18 @@ export class BotObject extends DurableObject {
     this.socket.send(heartbeatPayload(store.seq));
     this.heartbeat = heartbeatOnSend(this.heartbeat, now);
     writeGateway(kv, { ...store, last_heartbeat_at: now });
+  }
+
+  private count(key: string): void {
+    this.counters.set(key, (this.counters.get(key) ?? 0) + 1);
+  }
+
+  private flushCounters(): void {
+    if (this.counters.size === 0) {
+      return;
+    }
+    log("ingest", Object.fromEntries(this.counters));
+    this.counters.clear();
   }
 
   private onClose(socket: WebSocket, code: number | undefined, reason: string): void {

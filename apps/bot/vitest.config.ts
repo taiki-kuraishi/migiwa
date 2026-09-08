@@ -11,7 +11,7 @@ export default defineConfig({
       main: "./src/entry.ts",
       wrangler: { configPath: "./wrangler.jsonc" },
       miniflare: {
-        bindings: { DISCORD_BOT_TOKEN: "test-token" },
+        bindings: { DISCORD_BOT_TOKEN: "test-token", DISCORD_GUILD_IDS: "g1,g2" },
         // Every outbound fetch() of the Worker under test (GET /gateway/bot, the WebSocket
         // Upgrade) lands on the mock Discord below, so BotObject runs its production code path.
         outboundService: "mock-discord",

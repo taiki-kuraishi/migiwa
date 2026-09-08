@@ -1,7 +1,10 @@
 import type { GatewayState, StatusReport } from "@migiwa/gateway";
 
 const GATEWAY_KEY = "gateway",
-  DAY_MS = 86_400_000;
+  DAY_MS = 86_400_000,
+  // Only the GUILD_CREATE burst right after READY describes users who left while the bot was
+  // Away; a later GUILD_CREATE (a new guild, an outage ending) must use its own receive time.
+  SNAPSHOT_WINDOW_MS = 300_000;
 
 export { GATEWAY_KEY };
 
@@ -87,6 +90,16 @@ export function clearSession(store: GatewayStore): GatewayStore {
 export function recordReconnect(store: GatewayStore, now: number): GatewayStore {
   const recent = store.reconnects.filter((at) => at > now - DAY_MS);
   return { ...store, reconnects: [...recent, now] };
+}
+
+// GUILD_CREATE reconciliation (spec §6.3) wants the moment the bot lost its socket, but only
+// While that loss is still what explains the snapshot: past SNAPSHOT_WINDOW_MS, a fresh
+// GUILD_CREATE describes a new guild or a recovery long after the fact, not the outage itself,
+// So it must fall back to the dispatch's own received_at instead (ingestDispatch's job).
+export function snapshotDisconnectedAt(store: GatewayStore, now: number): number | null {
+  // No separate null guard: when disconnected_at is null, both ternary branches already yield
+  // Null (the "then" arm returns it as-is, the "else" arm returns null directly).
+  return now - store.status_since < SNAPSHOT_WINDOW_MS ? store.disconnected_at : null;
 }
 
 export function toStatusReport(store: GatewayStore, guildCount: number, now: number): StatusReport {
