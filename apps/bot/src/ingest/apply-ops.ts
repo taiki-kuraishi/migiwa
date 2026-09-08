@@ -10,6 +10,8 @@ function applyOpen(db: DatabaseClient, op: Extract<SessionOp, { kind: "open" }>)
   } else if (op.table === "activity") {
     db.insert(activity_sessions).values(op.row).run();
   } else {
+    // Op.table is "voice" here (SessionTable's third and last member); a fourth member added to
+    // SessionTable needs its own branch above, not a fallback into this one.
     db.insert(voice_sessions).values(op.row).run();
   }
 }
@@ -21,6 +23,8 @@ function applyClose(db: DatabaseClient, op: Extract<SessionOp, { kind: "close" }
   } else if (op.table === "activity") {
     db.update(activity_sessions).set(patch).where(eq(activity_sessions.id, op.id)).run();
   } else {
+    // Op.table is "voice" here (SessionTable's third and last member); a fourth member added to
+    // SessionTable needs its own branch above, not a fallback into this one.
     db.update(voice_sessions).set(patch).where(eq(voice_sessions.id, op.id)).run();
   }
 }
@@ -29,6 +33,8 @@ function applyUpdate(db: DatabaseClient, op: Extract<SessionOp, { kind: "update"
   if (op.table === "activity") {
     db.update(activity_sessions).set(op.patch).where(eq(activity_sessions.id, op.id)).run();
   } else {
+    // Op.table is "voice" here ("update" only ever targets activity or voice, per SessionOp); a
+    // Third "update"-able table needs its own branch above, not a fallback into this one.
     db.update(voice_sessions).set(op.patch).where(eq(voice_sessions.id, op.id)).run();
   }
 }

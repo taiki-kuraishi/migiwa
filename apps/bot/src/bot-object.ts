@@ -76,6 +76,8 @@ export class BotObject extends DurableObject {
   public constructor(ctx: DurableObjectState, env: Cloudflare.Env) {
     super(ctx, env);
     this.db = createDatabaseClient(ctx.storage);
+    // Wrangler.jsonc's declared default types this non-optional, but a deploy missing the var
+    // (Spec §8) must not take the object down; guildFilter() defaults a missing value itself.
     this.allowGuild = guildFilter(env.DISCORD_GUILD_IDS);
     // Every RPC may assume the schema exists: blockConcurrencyWhile holds every other call on
     // This object until the callback settles. Drizzle's journal makes re-running it on each
@@ -411,20 +413,16 @@ export class BotObject extends DurableObject {
         log("resumed", { seq });
       }
       if (dispatch !== null) {
-        this.ingestOne(dispatch, store, now);
+        // `store` carries this dispatch's already-updated disconnected_at/status_since
+        // (READY/RESUMED above may have just changed them), which is what the snapshot window reads.
+        const awaySince = snapshotDisconnectedAt(store, now),
+          outcome = ingestDispatch(this.db, dispatch, now, awaySince, this.allowGuild),
+          label = dispatch.t === "OTHER" ? dispatch.name : dispatch.t,
+          gateway = dispatch.t === "READY" || dispatch.t === "RESUMED";
+        this.count(`${label}:${gateway ? "gateway" : outcome}`);
       }
       writeGateway(kv, store);
     });
-  }
-
-  // Split out of onDispatch() to stay under the statement-count limit. Still runs inside the
-  // Same transactionSync callback (spec §6.4): a failure here rolls back seq along with it.
-  // `store` carries this dispatch's already-updated disconnected_at/status_since (READY/RESUMED
-  // Above may have just changed them), which is what the snapshot window reads.
-  private ingestOne(dispatch: ValidatedDispatch, store: GatewayStore, now: number): void {
-    const awaySince = snapshotDisconnectedAt(store, now),
-      outcome = ingestDispatch(this.db, dispatch, now, awaySince, this.allowGuild);
-    this.count(`${dispatch.t}:${outcome}`);
   }
 
   private sendHeartbeat(now: number): void {

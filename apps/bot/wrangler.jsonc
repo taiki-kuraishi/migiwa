@@ -6,11 +6,17 @@
   "compatibility_flags": ["nodejs_compat"],
   // Custom build (spec D13): typia's transform needs ttsc, which wrangler's bundler cannot
   // load. `wrangler deploy` / `dev` / `deploy --dry-run` run this first.
-  // The bundle also pulls in packages/gateway/src and packages/db/src (workspace source
-  // packages, spec §6), so `wrangler dev` needs all three watched to retrigger the custom build.
+  // The bundle also pulls in packages/gateway/src, packages/db/src and packages/sessionizer/src
+  // (workspace source packages, spec §6), so `wrangler dev` needs all four watched to retrigger
+  // the custom build.
   "build": {
     "command": "bun run build",
-    "watch_dir": ["src", "../../packages/gateway/src", "../../packages/db/src"],
+    "watch_dir": [
+      "src",
+      "../../packages/gateway/src",
+      "../../packages/db/src",
+      "../../packages/sessionizer/src",
+    ],
   },
   "durable_objects": {
     "bindings": [{ "name": "BOT", "class_name": "BotObject" }],

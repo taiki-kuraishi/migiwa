@@ -1,11 +1,5 @@
 import type { DatabaseClient } from "@migiwa/db";
-import type {
-  GuildCreateSlice,
-  GuildDeleteSlice,
-  PresenceSlice,
-  ValidatedDispatch,
-  VoiceStateSlice,
-} from "@migiwa/gateway";
+import type { GuildCreateSlice, GuildDeleteSlice, ValidatedDispatch } from "@migiwa/gateway";
 
 import { events, guilds } from "@migiwa/db";
 import { reduce, reduceGuildCreate, reduceGuildDelete } from "@migiwa/sessionizer";
@@ -17,72 +11,40 @@ import { loadOpenRows } from "./open-rows";
 export type IngestOutcome = "ingested" | "ignored";
 export type GuildFilter = (guild_id: string) => boolean;
 
-// DISCORD_GUILD_IDS: empty keeps every guild (spec §8).
-export function guildFilter(raw: string): GuildFilter {
+// DISCORD_GUILD_IDS: empty (or absent, defensively — spec §8's default) keeps every guild.
+export function guildFilter(raw: string | undefined): GuildFilter {
   const ids = new Set(
-    raw
+    (raw ?? "")
       .split(",")
       .map((id) => id.trim())
-      .filter((id) => id !== ""),
+      .filter(Boolean),
   );
-  return ids.size === 0 ? () => true : (guild_id) => ids.has(guild_id);
+  return (guild_id) => ids.size === 0 || ids.has(guild_id);
 }
 
-// Split out of ingestDispatch() to stay under the statement-count limit. `payload` stores the
-// Validated object, which typia hands back untrimmed, so the raw event is kept whole.
-function ingestPresence(
+// Split out of ingestDispatch() to stay under the statement-count limit. PRESENCE_UPDATE and
+// VOICE_STATE_UPDATE share this shape (guild filter, raw event, sessionizer ops); only where the
+// User id lives, and whether `guild_id` is required, differs between the two slices. `payload`
+// Stores the validated object, which typia hands back untrimmed, so the raw event is kept whole.
+function ingestSession(
   db: DatabaseClient,
-  d: PresenceSlice,
-  s: number,
+  event: Extract<ValidatedDispatch, { t: "PRESENCE_UPDATE" | "VOICE_STATE_UPDATE" }>,
   received_at: number,
   allow: GuildFilter,
 ): IngestOutcome {
-  if (!allow(d.guild_id)) {
-    return "ignored";
-  }
-  db.insert(events)
-    .values({
-      received_at,
-      seq: s,
-      type: "PRESENCE_UPDATE",
-      guild_id: d.guild_id,
-      user_id: d.user.id,
-      payload: d,
-    })
-    .run();
-  applyOps(
-    db,
-    reduce(loadOpenRows(db, d.guild_id, d.user.id), { t: "PRESENCE_UPDATE", d }, received_at),
-  );
-  return "ingested";
-}
-
-// Split out of ingestDispatch() to stay under the statement-count limit.
-function ingestVoice(
-  db: DatabaseClient,
-  d: VoiceStateSlice,
-  s: number,
-  received_at: number,
-  allow: GuildFilter,
-): IngestOutcome {
+  const { d } = event,
+    { guild_id } = d,
+    // Read through `event.d`, not the destructured `d` above: only that keeps the narrowing on
+    // `event.t` below in effect for the property access.
+    user_id = event.t === "PRESENCE_UPDATE" ? event.d.user.id : event.d.user_id;
   // A voice state without a guild is a DM call: nothing of ours to track.
-  if (d.guild_id === undefined || !allow(d.guild_id)) {
+  if (guild_id === undefined || !allow(guild_id)) {
     return "ignored";
   }
   db.insert(events)
-    .values({
-      received_at,
-      seq: s,
-      type: "VOICE_STATE_UPDATE",
-      guild_id: d.guild_id,
-      user_id: d.user_id,
-      payload: d,
-    })
+    .values({ received_at, seq: event.s, type: event.t, guild_id, user_id, payload: d })
     .run();
-  applyOps(
-    db,
-    reduce(loadOpenRows(db, d.guild_id, d.user_id), { t: "VOICE_STATE_UPDATE", d }, received_at),
-  );
+  applyOps(db, reduce(loadOpenRows(db, guild_id, user_id), event, received_at));
   return "ingested";
 }
 
@@ -151,11 +113,9 @@ export function ingestDispatch(
   allow: GuildFilter,
 ): IngestOutcome {
   switch (dispatch.t) {
-    case "PRESENCE_UPDATE": {
-      return ingestPresence(db, dispatch.d, dispatch.s, received_at, allow);
-    }
+    case "PRESENCE_UPDATE":
     case "VOICE_STATE_UPDATE": {
-      return ingestVoice(db, dispatch.d, dispatch.s, received_at, allow);
+      return ingestSession(db, dispatch, received_at, allow);
     }
     case "GUILD_CREATE": {
       return ingestGuildCreate(db, dispatch.d, dispatch.s, received_at, disconnected_at, allow);

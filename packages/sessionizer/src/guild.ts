@@ -20,6 +20,25 @@ export interface GuildUpsert {
   last_snapshot_at: number;
 }
 
+// GUILD_CREATE's snapshot can list thousands of presences; reducePresenceStatus/reduceActivities/
+// ReduceVoice each re-filter their `open` argument by (guild_id, user_id), so calling them once
+// Per entry with the whole guild's open rows costs O(entries * open rows) (measured in the DO:
+// 10,000 presences took 3.9s against a no-op snapshot). Bucketing by user_id once up front and
+// Handing each entry only its own user's rows (still safe to re-filter by guild_id) drops that to
+// One pass over `open` plus one bucket lookup per entry.
+function bucketByUser<T extends { user_id: string }>(rows: T[]): Map<string, T[]> {
+  const byUser = new Map<string, T[]>();
+  for (const row of rows) {
+    const bucket = byUser.get(row.user_id);
+    if (bucket === undefined) {
+      byUser.set(row.user_id, [row]);
+    } else {
+      bucket.push(row);
+    }
+  }
+  return byUser;
+}
+
 // Spec §6.3: both GUILD_CREATE and GUILD_DELETE only touch this guild's open rows.
 // Filters by `guild_id` itself rather than trusting the caller to pre-scope `open`.
 function closeGone(
@@ -63,15 +82,18 @@ export function reduceGuildCreate(
     voiceUsers = new Set(d.voice_states.map((voice) => voice.user_id)),
     ended_at = disconnected_at ?? received_at,
     reconcilePresence = d.member_count <= PRESENCE_SNAPSHOT_LIMIT,
+    presenceByUser = bucketByUser(open.presence),
+    activityByUser = bucketByUser(open.activity),
+    voiceByUser = bucketByUser(open.voice),
     applied = d.presences.flatMap((presence) => {
       const like = { ...presence, guild_id: d.id };
       return [
-        ...reducePresenceStatus(open.presence, like, received_at),
-        ...reduceActivities(open.activity, like, received_at),
+        ...reducePresenceStatus(presenceByUser.get(presence.user.id) ?? [], like, received_at),
+        ...reduceActivities(activityByUser.get(presence.user.id) ?? [], like, received_at),
       ];
     }),
     voiceApplied = d.voice_states.flatMap((voice) =>
-      reduceVoice(open.voice, d.id, voice, received_at),
+      reduceVoice(voiceByUser.get(voice.user_id) ?? [], d.id, voice, received_at),
     ),
     closed = [
       ...(reconcilePresence

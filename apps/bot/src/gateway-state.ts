@@ -97,9 +97,8 @@ export function recordReconnect(store: GatewayStore, now: number): GatewayStore 
 // GUILD_CREATE describes a new guild or a recovery long after the fact, not the outage itself,
 // So it must fall back to the dispatch's own received_at instead (ingestDispatch's job).
 export function snapshotDisconnectedAt(store: GatewayStore, now: number): number | null {
-  if (store.disconnected_at === null) {
-    return null;
-  }
+  // No separate null guard: when disconnected_at is null, both ternary branches already yield
+  // Null (the "then" arm returns it as-is, the "else" arm returns null directly).
   return now - store.status_since < SNAPSHOT_WINDOW_MS ? store.disconnected_at : null;
 }
 
