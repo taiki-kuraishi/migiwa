@@ -443,7 +443,7 @@ bearer token を設定する。
    cross-script binding は deploy 後の `curl /health` で証明する。テスト専用の wrangler config は
    作らない。
 3. **24 時間 PoC(手動)**: Gateway 接続を実装する wave の完了条件。作者のアカウントに deploy し、
-   実 Gateway に 24 時間繋ぐ。合格: `connected` でない時間の合計が 10 分未満、`reconnects_24h ≤ 10`、
+   実 Gateway に 24 時間繋ぐ。合格: `connected` でない時間の合計が 10 分未満、bot 起因の再接続(Discord の op 7 による RESUME を除く)が 10 回以下、
    `identify_remaining` が単調減少していない(RESUME が効いている)、Workers Logs に close code
    4004 / 4013 / 4014 が無い。不合格なら D1 のフォールバック(Containers)を spec に追記してから
    以降の wave を書き直す。
