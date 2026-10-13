@@ -1,11 +1,13 @@
 import { defineConfig } from "oxfmt";
 
 export default defineConfig({
-  // Markdown prose (README, Japanese design specs) must stay as written, not get reflowed.
-  ignorePatterns: ["worker-configuration.d.ts", "packages/db/drizzle/**", "**/*.md"],
-  printWidth: 100,
-  semi: true,
-  singleQuote: false,
+  ignorePatterns: [
+    ".agents/**",
+    "**/worker-configuration.d.ts",
+    // Markdown stays hand-formatted: oxfmt pads every table column to its widest cell, which
+    // turns the long prose tables in docs/specs into whole-table diffs on any one-cell edit.
+    "**/*.md",
+  ],
   sortImports: {
     groups: [
       "type-import",
@@ -17,6 +19,4 @@ export default defineConfig({
       "unknown",
     ],
   },
-  trailingComma: "all",
-  useTabs: false,
 });

@@ -1,10 +1,8 @@
 name: Setup Bun
-description: >
-  Cache bun's install cache and install dependencies. Requires bun to be already
-  installed — call ./.github/actions/setup-mise (install_args "bun") first in the job.
+description: Restore Bun's install cache and install dependencies. Bun must already be on PATH.
 
 runs:
-  using: "composite"
+  using: composite
   steps:
     - uses: actions/cache@v6
       with:
@@ -12,4 +10,4 @@ runs:
         key: bun-install-${{ runner.os }}-${{ hashFiles('bun.lock') }}
         restore-keys: bun-install-${{ runner.os }}-
     - shell: bash
-      run: bun install --frozen-lockfile
+      run: bun ci

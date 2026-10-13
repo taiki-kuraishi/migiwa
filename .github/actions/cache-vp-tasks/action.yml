@@ -1,14 +1,11 @@
-name: Cache Vite+ task cache
-description: Restore (and save in post) vp run's task cache at node_modules/.vite/task-cache.
+name: Cache Vite Task results
+description: Restore vp run's task cache, saving a fresh entry when the job succeeds. Call after dependencies are installed.
 
 runs:
-  using: "composite"
+  using: composite
   steps:
-    # Rolling per-run primary key + os/arch restore prefix: every run saves a fresh
-    # immutable entry (task-cache content changes each run) and restores the newest
-    # compatible one. The combined cache action saves in the post step (always a miss
-    # on the run-id key, so it always saves). See:
-    # https://viteplus.dev/guide/github-actions-cache
+    # A per-run key never hits, so the post step always saves; restore-keys picks up the newest
+    # earlier entry and Vite Task decides per task what is still valid.
     - uses: actions/cache@v6
       with:
         path: node_modules/.vite/task-cache

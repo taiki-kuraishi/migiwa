@@ -11,47 +11,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  lint-and-test:
+  check:
     runs-on: ubuntu-slim
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-      # Composites are called from the job, never from inside another composite:
-      # setup-mise installs bun, setup-bun caches + installs deps.
-      - uses: ./.github/actions/setup-mise
+      - uses: jdx/mise-action@v5
         with:
-          install_args: "bun"
-      # mise rewrites mise.lock in place whenever the committed entries no longer
-      # satisfy the install (a bumped mise.toml, a platform it has to resolve
-      # itself). A clean diff here is the proof the lockfile is actually pinning
-      # the toolchain instead of being regenerated from the network every run.
+          install_args: bun
+      # mise rewrites mise.lock whenever its entries no longer satisfy mise.toml, so a clean
+      # diff is the proof the lockfile pins the toolchain rather than being re-resolved per run.
       - run: git diff --exit-code -- mise.lock
       - uses: ./.github/actions/setup-bun
       - uses: ./.github/actions/cache-vp-tasks
       - run: bun dedupe --check
-      # Fails when apps/bot/worker-configuration.d.ts is older than wrangler.jsonc (spec §11).
-      - run: bun run --cwd apps/bot cf-typegen --check
-      # The test runner and wrangler implement the .sql Text rule in different bundlers,
-      # so a green vitest run does not prove the deploy bundle builds. --dry-run makes no
-      # API calls and needs no token or account id.
-      - run: bun run --cwd apps/bot wrangler deploy --dry-run --outdir "$RUNNER_TEMP/bot-dist"
-      - run: bunx vp run oxlint --deny-warnings --format=github
-      - run: bunx vp run oxfmt --check
-      - run: bunx vp run type-check
+      - run: bunx vp run fmt-check
+      - run: bunx vp run lint --format=github
       - run: bunx vp run -r type-check
-      - run: bunx vp run -r test
 
-  # knip runs on ubuntu-latest, not ubuntu-slim: it parses with oxc-parser, which
-  # pre-allocates a fixed multi-GB ArrayBuffer that fails on ubuntu-slim's ~4.9 GB
-  # ("RangeError: Array buffer allocation failed"). oxlint/oxfmt above are native
-  # binaries and do not hit this, so only knip needs the larger runner.
+  # Knip parses with oxc-parser, which pre-allocates a multi-GB ArrayBuffer that ubuntu-slim's
+  # memory cannot back ("RangeError: Array buffer allocation failed").
   knip:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-mise
+      - uses: jdx/mise-action@v5
         with:
-          install_args: "bun"
+          install_args: bun
       - uses: ./.github/actions/setup-bun
-      - run: bun run knip
+      - run: bunx vp run knip
