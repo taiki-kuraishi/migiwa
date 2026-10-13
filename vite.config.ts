@@ -1,10 +1,19 @@
 import { defineConfig } from "vite-plus";
 
-// Workspace task runner config for `vp run`.
-// `vp run -r <task>` runs a script in every workspace that defines it, in dependency order.
 export default defineConfig({
   run: {
-    // Cache package.json script runs through vp run, keyed on input files; knip is excluded because it mutates its own inputs and never caches.
-    cache: { scripts: true },
+    cache: { scripts: true, tasks: true },
+    tasks: {
+      fmt: "oxfmt",
+      "fmt-check": "oxfmt --check",
+      knip: {
+        command: "knip",
+        // Knip transpiles its config through jiti, which reads and rewrites its cache file on
+        // every config change; tracking that file makes Vite Task refuse to cache the run.
+        cache: { input: [{ auto: true }, "!node_modules/.cache/**"] },
+      },
+      lint: "oxlint --deny-warnings",
+      "type-check": "tsc --noEmit",
+    },
   },
 });

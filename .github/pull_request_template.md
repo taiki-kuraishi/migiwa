@@ -1,8 +1,6 @@
 <!--
-PR title: prefix it with a git emoji (gitmoji) matching the change, e.g.
-  ✨ feat(gateway): ...   🐛 fix(bot): ...   📝 docs: ...   ♻️ refactor: ...
-  ⚡️ perf: ...   ✅ test: ...   🔧 chore: ...   👷 ci: ...   ⬆️ deps: ...   🔥 remove: ...
-Format: <gitmoji> <type>(<scope>): <summary>  (scope optional)
+Title: <gitmoji> <type>(<scope>): <summary>   (scope optional)
+  ✨ feat  🐛 fix  📝 docs  ♻️ refactor  ⚡️ perf  ✅ test  🔧 chore  👷 ci  ⬆️ deps  🔥 remove
 -->
 
 ## Summary
@@ -12,15 +10,10 @@ Format: <gitmoji> <type>(<scope>): <summary>  (scope optional)
 ## Changes
 
 -
--
 
 ## Testing
 
-<!-- How was this verified? -->
-
-- [ ] Lint / format / type-check / tests pass locally (`bunx vp run ...`, `bun run knip`)
-- [ ] `bun dedupe --check` passes
-- [ ] Manual check (describe)
+<!-- How was this verified? List the commands you ran and anything checked by hand. -->
 
 ## Notes
 

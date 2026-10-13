@@ -1,5 +1,3 @@
-# Generated files (codegen output) are collapsed in GitHub PR diffs and excluded
-# from language stats. See AGENTS.md "Generated code".
 apps/*/worker-configuration.d.ts linguist-generated=true
-packages/db/drizzle/** linguist-generated=true
-packages/db/drizzle/migrations.d.ts -linguist-generated
+bun.lock linguist-generated=true
+mise.lock linguist-generated=true
