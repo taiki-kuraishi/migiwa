@@ -1,11 +1,33 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended"],
-  "dependencyDashboardApproval": true,
+  "extends": ["config:recommended", ":dependencyDashboardApproval"],
+  "timezone": "Asia/Tokyo",
   "prHourlyLimit": 0,
   "prConcurrentLimit": 3,
   "minimumReleaseAge": "1 day",
-  "lockFileMaintenance": { "enabled": true },
+  "platformAutomerge": false,
+  "reviewers": ["taiki-kuraishi"],
+  "assignAutomerge": true,
+  "vulnerabilityAlerts": { "enabled": true },
+  "lockFileMaintenance": { "enabled": true, "automerge": true },
+  "packageRules": [
+    {
+      "description": "Routine patch PRs would spend GitHub Actions minutes; vulnerabilityAlerts force-enables security patches, which this rule then automerges",
+      "matchUpdateTypes": ["patch"],
+      "enabled": false,
+      "automerge": true
+    },
+    {
+      "description": "Minor and digest updates rarely contain breaking changes",
+      "matchUpdateTypes": ["minor", "digest"],
+      "automerge": true
+    },
+    {
+      "description": "Major updates can break APIs",
+      "matchUpdateTypes": ["major"],
+      "automerge": false
+    }
+  ],
   "customManagers": [
     {
       "customType": "regex",
