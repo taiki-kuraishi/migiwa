@@ -5,5 +5,10 @@ dist/
 !.dev.vars.example
 .env*
 !.env.example
+fnox.local.toml
+.terraform/
+# State lives in S3; these catch local leftovers (errored.tfstate, backups), which hold token values.
+*.tfstate
+*.tfstate.*
 *.log
 docs/plans/

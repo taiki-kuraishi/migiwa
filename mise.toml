@@ -1,5 +1,6 @@
 [tools]
 bun = "1.4.3"
+fnox = "1.39.0"
 lefthook = "2.2.1"
 terraform = "1.16.5"
 
