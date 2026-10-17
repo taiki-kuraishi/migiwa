@@ -2,7 +2,7 @@
 
 ## Language
 
-Code, code comments, README, commit messages, and PRs are in English.
+Code comments are in Japanese; code, README, commit messages, and PRs are in English.
 Design specs under `docs/specs/` and plans under `docs/plans/` are in Japanese;
 `docs/plans/` is gitignored.
 
@@ -20,10 +20,14 @@ Always use Bun. Never npm, yarn, or pnpm.
 
 Run lint, format, type-check, knip, and test through `vp run` so they go through
 the Vite Task cache; a new root-only check goes in `vite.config.ts` `run.tasks`.
-Each workspace defines the package.json scripts `type-check` and `test`
-(Workers also `cf-typegen`), and the root runs them across workspaces with
-`bunx vp run -r <script>`. `bun install --frozen-lockfile --dry-run` and
-`bun dedupe --check` run directly: a cache hit would skip the check itself.
+Each workspace defines the package.json script `type-check` (Workers also
+`cf-typegen`) and defines `test` in its own `vite.config.ts` `run.tasks` as
+`vp test`, not as a script: on Linux, fspy cannot see the reads of Bun, which
+skips libc, so a Bun-run test would replay a stale cache (vite-task#777). The
+root runs them across workspaces with `bunx vp run -r <task>`. Tests need
+mise's Node on PATH (CI included): without it Vitest silently runs on Bun.
+`bun install --frozen-lockfile --dry-run` and `bun dedupe --check` run
+directly: a cache hit would skip the check itself.
 
 ## TypeScript
 
@@ -63,8 +67,10 @@ do not add a deploy workflow.
 
 ## Testing
 
-- `packages/*` and binding-free Workers: `bun test`. For an MCP server, drive it
-  through the SDK's `InMemoryTransport` + a real client, not direct handler calls.
+- `packages/*` and binding-free Workers: Vitest (`vp test`), imported from
+  `vite-plus/test` so specs use the runner `vp test` bundles; do not add `vitest`.
+  For an MCP server, drive it through the SDK's `InMemoryTransport` + a real
+  client, not direct handler calls.
 - Workers that touch Cloudflare bindings: `vitest` + `@cloudflare/vitest-plugin`,
   config in `vitest.config.ts` pointed at the same `wrangler.jsonc` used for
   deploy — there is no separate test config. Call the Worker through

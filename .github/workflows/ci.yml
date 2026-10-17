@@ -18,9 +18,9 @@ jobs:
       - uses: actions/checkout@v7
       - uses: jdx/mise-action@v5
         with:
-          install_args: bun
-      # mise rewrites mise.lock whenever its entries no longer satisfy mise.toml, so a clean
-      # diff is the proof the lockfile pins the toolchain rather than being re-resolved per run.
+          install_args: "bun node"
+      # mise は mise.lock の entry が mise.toml を満たさなくなると mise.lock を書き換える。diff が
+      # 無いことが、lockfile が toolchain を固定していて実行ごとに解決し直していない証拠になる。
       - run: git diff --exit-code -- mise.lock
       - uses: ./.github/actions/setup-bun
       - uses: ./.github/actions/cache-vp-tasks
@@ -28,9 +28,10 @@ jobs:
       - run: bunx vp run fmt-check
       - run: bunx vp run lint --format=github
       - run: bunx vp run -r type-check
+      - run: bunx vp run -r test
 
-  # Knip parses with oxc-parser, which pre-allocates a multi-GB ArrayBuffer that ubuntu-slim's
-  # memory cannot back ("RangeError: Array buffer allocation failed").
+  # knip が使う oxc-parser は数 GB の ArrayBuffer を先に確保し、ubuntu-slim の memory では
+  # 確保できない（"RangeError: Array buffer allocation failed"）。
   knip:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -38,6 +39,6 @@ jobs:
       - uses: actions/checkout@v7
       - uses: jdx/mise-action@v5
         with:
-          install_args: bun
+          install_args: "bun node"
       - uses: ./.github/actions/setup-bun
       - run: bunx vp run knip

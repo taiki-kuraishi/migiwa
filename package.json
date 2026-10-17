@@ -10,12 +10,15 @@
       "@cloudflare/vitest-plugin": "1.1.2",
       "@libsql/client": "0.17.4",
       "@types/bun": "1.4.3",
+      "better-result": "3.0.1",
+      "discord-api-types": "0.38.56",
       "drizzle-kit": "0.31.10",
       "drizzle-orm": "0.45.2",
       "hono": "4.13.5",
       "oxfmt": "0.72.0",
       "oxlint": "1.87.0",
       "typescript": "7.0.2",
+      "vite-plus": "1.1.0",
       "vitest": "4.1.11",
       "wrangler": "4.149.0"
     }
@@ -27,7 +30,7 @@
     "oxlint": "catalog:",
     "oxlint-tsgolint": "7.0.2004",
     "typescript": "catalog:",
-    "vite-plus": "1.1.0"
+    "vite-plus": "catalog:"
   },
   "peerDependencies": {
     "typescript": "catalog:"

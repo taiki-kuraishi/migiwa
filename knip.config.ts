@@ -1,11 +1,11 @@
 import type { KnipConfig } from "knip";
 
 export default {
-  // Vendored skills hold no JS/TS today, so knip hints "Remove from ignore"; the entry stays so
-  // scripts a future skill version ships are never reported as unused files.
+  // 今は vendor した skill に JS/TS が無いので knip は "Remove from ignore" と hint を出す。将来の
+  // skill の版が script を持ち込んでも未使用ファイルとして報告させないため、この entry は残す。
   ignore: [".agents/**"],
   rules: {
-    // The catalog pins versions for the Workers and packages before any workspace consumes them.
+    // Workspace が使い始める前から、catalog で Worker と package の版を固定している。
     catalog: "off",
   },
 } satisfies KnipConfig;

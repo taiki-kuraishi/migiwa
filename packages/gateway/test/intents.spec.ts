@@ -1,0 +1,54 @@
+import { ApplicationFlags, GatewayIntentBits } from "discord-api-types/v10";
+import { describe, expect, test } from "vite-plus/test";
+
+import { deriveIntents } from "../src/intents";
+
+const privileged =
+  GatewayIntentBits.GuildPresences |
+  GatewayIntentBits.GuildMembers |
+  GatewayIntentBits.MessageContent;
+
+describe("deriveIntents", () => {
+  test("includes every non-privileged intent and no privileged one without flags", () => {
+    // Act
+    const intents = deriveIntents(0);
+
+    // Assert
+    expect(intents & privileged).toBe(0);
+    expect(intents).toBe(
+      GatewayIntentBits.Guilds |
+        GatewayIntentBits.GuildModeration |
+        GatewayIntentBits.GuildExpressions |
+        GatewayIntentBits.GuildIntegrations |
+        GatewayIntentBits.GuildWebhooks |
+        GatewayIntentBits.GuildInvites |
+        GatewayIntentBits.GuildVoiceStates |
+        GatewayIntentBits.GuildMessages |
+        GatewayIntentBits.GuildMessageReactions |
+        GatewayIntentBits.GuildMessageTyping |
+        GatewayIntentBits.DirectMessages |
+        GatewayIntentBits.DirectMessageReactions |
+        GatewayIntentBits.DirectMessageTyping |
+        GatewayIntentBits.GuildScheduledEvents |
+        GatewayIntentBits.AutoModerationConfiguration |
+        GatewayIntentBits.AutoModerationExecution |
+        GatewayIntentBits.GuildMessagePolls |
+        GatewayIntentBits.DirectMessagePolls,
+    );
+  });
+
+  test.each([
+    [ApplicationFlags.GatewayPresence, GatewayIntentBits.GuildPresences],
+    [ApplicationFlags.GatewayPresenceLimited, GatewayIntentBits.GuildPresences],
+    [ApplicationFlags.GatewayGuildMembers, GatewayIntentBits.GuildMembers],
+    [ApplicationFlags.GatewayGuildMembersLimited, GatewayIntentBits.GuildMembers],
+    [ApplicationFlags.GatewayMessageContent, GatewayIntentBits.MessageContent],
+    [ApplicationFlags.GatewayMessageContentLimited, GatewayIntentBits.MessageContent],
+  ])("flag %i adds only privileged intent %i", (flag, intent) => {
+    // Act
+    const intents = deriveIntents(flag);
+
+    // Assert
+    expect(intents & privileged).toBe(intent);
+  });
+});

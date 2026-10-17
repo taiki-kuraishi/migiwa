@@ -12,5 +12,7 @@ pre-commit:
       run: bunx vp run lint
     type-check:
       run: bunx vp run -r type-check
+    test:
+      run: bunx vp run -r test
     knip:
       run: bunx vp run knip
