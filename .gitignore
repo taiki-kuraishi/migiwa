@@ -7,7 +7,7 @@ dist/
 !.env.example
 fnox.local.toml
 .terraform/
-# State lives in S3; these catch local leftovers (errored.tfstate, backups), which hold token values.
+# state は S3 にある。ここで拾うのはローカルに残ったもの（errored.tfstate、backup）で、token の値を含む。
 *.tfstate
 *.tfstate.*
 *.log

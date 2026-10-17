@@ -1,34 +1,34 @@
 resource "cloudflare_r2_bucket" "events" {
   account_id = var.account_id
   name       = var.bucket_name
-  # The hand-issued sink and maintenance tokens are scoped to
-  # com.cloudflare.edge.r2.bucket.<account>_default_migiwa-events; Basin Catalog also rejects
-  # non-default jurisdictions.
+  # 手で発行する sink と maintenance の token は
+  # com.cloudflare.edge.r2.bucket.<account>_default_migiwa-events に scope されている。Basin Catalog も
+  # default 以外の jurisdiction を受け付けない。
   jurisdiction = "default"
 }
 
-# Compaction and snapshot expiration are computed-only here; maintenance.sh sets them.
+# compaction と snapshot expiration はここでは computed のみ。設定するのは maintenance.sh。
 resource "cloudflare_r2_data_catalog" "events" {
   account_id  = var.account_id
   bucket_name = cloudflare_r2_bucket.events.name
 }
 
-# Stream schema, sink config and pipeline SQL are immutable once created: any change here
-# replaces the resource, so evolve the record shape by adding a *_v2 set instead.
+# stream の schema、sink の設定、pipeline の SQL は作成後に変えられず、ここを変えると resource が
+# 作り直される。record の形を変えるときは *_v2 の一式を足す。
 resource "cloudflare_pipeline_stream" "events" {
   account_id = var.account_id
   name       = var.stream_name
   format     = { type = "json" }
   schema = {
     fields = [
-      # millisecond lets the bot send Date.now() as-is; RFC 3339 strings are accepted too.
+      # millisecond なら bot が Date.now() をそのまま送れる。RFC 3339 の文字列も受け付ける。
       { name = "received_at", type = "timestamp", unit = "millisecond", required = true },
       { name = "type", type = "string", required = true },
       { name = "session_id", type = "string", required = true },
-      # Discord dispatches carry `s`, but the gateway may emit events without one.
-      # (session_id, seq) is the dedup key readers apply; Pipelines cannot enforce uniqueness.
+      # Discord の dispatch は `s` を持つが、gateway は `s` の無い event も出しうる。
+      # (session_id, seq) は読む側が使う重複排除の key。Pipelines は一意性を強制できない。
       { name = "seq", type = "int64", required = false },
-      # Snowflakes exceed 2^53, so they stay strings end to end.
+      # snowflake は 2^53 を超えるので、最初から最後まで文字列のまま扱う。
       { name = "guild_id", type = "string", required = false },
       { name = "channel_id", type = "string", required = false },
       { name = "user_id", type = "string", required = false },
@@ -38,7 +38,7 @@ resource "cloudflare_pipeline_stream" "events" {
   http = {
     enabled        = true
     authentication = true
-    # The API echoes back an empty cors object; omitting it leaves a permanent in-place diff.
+    # API は空の cors object を返してくる。省略すると in-place の diff が消えずに残る。
     cors = {}
   }
   worker_binding = { enabled = true }

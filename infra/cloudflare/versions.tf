@@ -1,8 +1,8 @@
 terraform {
-  # use_lockfile (S3-native state locking) needs 1.10+.
+  # use_lockfile（S3 だけで state を lock する）には 1.10 以上が要る。
   required_version = ">= 1.10"
 
-  # Run with AWS_PROFILE=kuraishi (IAM Identity Center SSO: `aws sso login --profile kuraishi`).
+  # AWS_PROFILE=kuraishi で実行する（IAM Identity Center SSO: `aws sso login --profile kuraishi`）。
   backend "s3" {
     bucket       = "kuraishi-migiwa-tfstate"
     key          = "cloudflare/terraform.tfstate"

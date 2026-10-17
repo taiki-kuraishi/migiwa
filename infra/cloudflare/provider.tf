@@ -1,2 +1,2 @@
-# Reads CLOUDFLARE_API_TOKEN from the environment so the token never lands in a tfvars file.
+# CLOUDFLARE_API_TOKEN は環境変数から読むので、token が tfvars file に入ることはない。
 provider "cloudflare" {}

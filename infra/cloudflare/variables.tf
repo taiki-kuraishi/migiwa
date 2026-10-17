@@ -3,12 +3,12 @@ variable "account_id" {
   type        = string
 }
 
-# Issued by hand (the provider token cannot create tokens) and stored in Secrets Manager as
-# MIGIWA_CLOUDFLARE_SINK_TOKEN; `fnox exec` exports it as TF_VAR_sink_token. Null is allowed so
-# the bucket and catalog can be applied with -target before the token exists, since the token
-# is scoped to that bucket.
-# Changing the value replaces the sink (its config is immutable), and a new sink cannot write
-# into the existing table, so rotating this token means moving to a *_v2 table.
+# 手で発行し（provider の token は token を作れない）、Secrets Manager に
+# MIGIWA_CLOUDFLARE_SINK_TOKEN として保存する。`fnox exec` が TF_VAR_sink_token として export する。
+# token はその bucket に scope されるので、token ができる前に bucket と catalog を -target で apply
+# できるよう null を許す。
+# 値を変えると sink が作り直され（設定は変えられない）、新しい sink は既存の table に書けないので、
+# この token の rotate は *_v2 の table への移行になる。
 variable "sink_token" {
   description = "Token the pipeline sink writes to Basin Catalog with (Data Catalog Write + Bucket Item Write on migiwa-events)."
   type        = string
@@ -16,7 +16,7 @@ variable "sink_token" {
   default     = null
 }
 
-# Bot and aggregation Workers address these by name, so they are fixed rather than per-deploy inputs.
+# bot と集計の Worker はこれらを名前で参照するので、deploy ごとの入力にせず固定する。
 variable "bucket_name" {
   description = "R2 bucket that holds the Basin Catalog."
   type        = string

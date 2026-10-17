@@ -8,8 +8,8 @@ export default defineConfig({
       "fmt-check": "oxfmt --check",
       knip: {
         command: "knip",
-        // Knip transpiles its config through jiti, which reads and rewrites its cache file on
-        // every config change; tracking that file makes Vite Task refuse to cache the run.
+        // Knip は設定を jiti で transpile し、設定が変わるたびに jiti の cache file を読み書きする。
+        // その file を追跡すると、Vite Task が実行を cache しなくなる。
         cache: { input: [{ auto: true }, "!node_modules/.cache/**"] },
       },
       lint: "oxlint --deny-warnings",

@@ -4,8 +4,8 @@ description: Restore vp run's task cache, saving a fresh entry when the job succ
 runs:
   using: composite
   steps:
-    # A per-run key never hits, so the post step always saves; restore-keys picks up the newest
-    # earlier entry and Vite Task decides per task what is still valid.
+    # 実行ごとの key は hit しないので、post step は必ず保存する。restore-keys が直近の entry を拾い、
+    # どこまでがまだ有効かは Vite Task が task ごとに判断する。
     - uses: actions/cache@v6
       with:
         path: node_modules/.vite/task-cache

@@ -1,4 +1,4 @@
-# Containers only: values are written with `fnox set`, never through Terraform, so they stay out of state.
+# 入れ物だけを作る。値は Terraform を通さず `fnox set` で書くので、state に入らない。
 resource "aws_secretsmanager_secret" "cloudflare_api_token" {
   name        = "MIGIWA_CLOUDFLARE_API_TOKEN"
   description = "Cloudflare provider token for infra/cloudflare."

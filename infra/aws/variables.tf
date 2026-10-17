@@ -1,4 +1,4 @@
-# The personal account is shared with other repos, which is why the secrets carry a MIGIWA_ prefix.
+# 個人 account はほかの repo と共有しているので、secret には MIGIWA_ の prefix を付けている。
 variable "aws_account_id" {
   description = "Personal AWS account that holds the Secrets Manager secrets."
   type        = string
