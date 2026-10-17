@@ -1,4 +1,8 @@
 {
   "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Workers の実行環境に近い型にし、window などブラウザ専用の型は入れない。
+    "lib": ["ESNext", "WebWorker"]
+  },
   "include": ["src", "test", "vite.config.ts"]
 }
