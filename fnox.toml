@@ -16,3 +16,6 @@ TF_VAR_sink_token = { provider = "aws", value = "MIGIWA_CLOUDFLARE_SINK_TOKEN", 
 CLOUDFLARE_MAINTENANCE_TOKEN = { provider = "aws", value = "MIGIWA_CLOUDFLARE_MAINTENANCE_TOKEN", if_missing = "warn" }
 # warn なので、値を入れる前でもほかの用途の `fnox exec` は走る。無ければ infra/cloudflare の plan が止まる。
 TF_VAR_discord_bot_token = { provider = "aws", value = "MIGIWA_DISCORD_BOT_TOKEN", if_missing = "warn" }
+# 作者の account の ID。self-host する人は fnox.local.toml で上書きする。
+TF_VAR_account_id = { default = "bd1a33a9922e50b3afff5a2f21ad52d0" }
+CLOUDFLARE_ACCOUNT_ID = { default = "bd1a33a9922e50b3afff5a2f21ad52d0" }

@@ -30,6 +30,9 @@ root runs them across workspaces with `bunx vp run -r <task>`. Tests need
 mise's Node on PATH (CI included): without it Vitest silently runs on Bun.
 `bun install --frozen-lockfile --dry-run` and `bun dedupe --check` run
 directly: a cache hit would skip the check itself.
+Terraform checks for `infra/*` (fmt, `init -backend=false`, validate) run in
+`.github/workflows/terraform.yml`, not through `vp run`: that job needs only
+terraform, not Bun or Node.
 
 ## TypeScript
 
