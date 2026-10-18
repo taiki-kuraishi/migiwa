@@ -1,0 +1,30 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "migiwa-bot",
+  "main": "./src/entry.ts",
+  // テストと deploy は同じこの設定を読む。@cloudflare/vitest-plugin の workerd が対応する日付より
+  // 新しくすると、テストの runtime が起動しない（2026-10-18 時点で 2026-09-04 まで）。
+  "compatibility_date": "2026-09-04",
+  "durable_objects": {
+    "bindings": [{ "name": "BOT", "class_name": "BotObject" }],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["BotObject"] }],
+  // Alarm の連鎖が切れたときに DO を起こし直す。
+  "triggers": { "crons": ["* * * * *"] },
+  // infra/cloudflare の `terraform output stream_id`。
+  "pipelines": [{ "binding": "EVENTS", "stream": "c8e97fedc9534001a6bb8fb82bda5838" }],
+  // Store は 1 アカウントに 1 つで、infra/cloudflare の `terraform output secrets_store_id`。secret も
+  // infra/cloudflare が作る。
+  "secrets_store_secrets": [
+    {
+      "binding": "DISCORD_BOT_TOKEN",
+      "store_id": "9a2d7bd458234f29b84bff50f66669d0",
+      "secret_name": "migiwa-discord-bot-token",
+    },
+  ],
+  "observability": { "enabled": true, "traces": { "enabled": true } },
+  // /health を custom domain なしで見るため。
+  "workers_dev": true,
+  "preview_urls": false,
+  "upload_source_maps": true,
+}

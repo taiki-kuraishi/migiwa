@@ -71,3 +71,17 @@ resource "cloudflare_pipeline" "events" {
   name       = var.pipeline_name
   sql        = "INSERT INTO ${cloudflare_pipeline_sink.events.name} SELECT * FROM ${cloudflare_pipeline_stream.events.name}"
 }
+
+# Secrets Store は 1 アカウントに 1 つしか作れず（open beta）、ほかの用途と共有しうるので、Terraform では
+# 管理せず参照だけする。
+data "cloudflare_secrets_stores" "account" {
+  account_id = var.account_id
+}
+
+resource "cloudflare_secrets_store_secret" "discord_bot_token" {
+  account_id = var.account_id
+  store_id   = one(data.cloudflare_secrets_stores.account.result).id
+  name       = var.discord_bot_token_secret_name
+  scopes     = ["workers"]
+  value      = var.discord_bot_token
+}

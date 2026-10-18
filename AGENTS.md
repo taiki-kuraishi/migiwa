@@ -23,7 +23,9 @@ the Vite Task cache; a new root-only check goes in `vite.config.ts` `run.tasks`.
 Each workspace defines the package.json script `type-check` (Workers also
 `cf-typegen`) and defines `test` in its own `vite.config.ts` `run.tasks` as
 `vp test`, not as a script: on Linux, fspy cannot see the reads of Bun, which
-skips libc, so a Bun-run test would replay a stale cache (vite-task#777). The
+skips libc, so a Bun-run test would replay a stale cache (vite-task#777).
+Workers on `@cloudflare/vitest-plugin` use `vitest run` there instead, since the
+plugin targets the catalog's Vitest, not the one `vp test` bundles. The
 root runs them across workspaces with `bunx vp run -r <task>`. Tests need
 mise's Node on PATH (CI included): without it Vitest silently runs on Bun.
 `bun install --frozen-lockfile --dry-run` and `bun dedupe --check` run
@@ -81,7 +83,10 @@ do not add a deploy workflow.
 Anything produced by a generator and committed must be registered in
 `.gitattributes` with `linguist-generated=true` and never hand-edited; rerun
 its generator instead. Each Worker's `worker-configuration.d.ts` comes from
-`wrangler types` through its `cf-typegen` script.
+`wrangler types` through its `cf-typegen` script, which runs Wrangler without
+credentials (`CLOUDFLARE_API_TOKEN=` and a throwaway `XDG_CONFIG_HOME`): with
+them, Wrangler fetches pipeline stream schemas and writes types that CI, which
+has none, cannot reproduce. CI and lefthook regenerate it and fail on a diff.
 
 ## Comments
 

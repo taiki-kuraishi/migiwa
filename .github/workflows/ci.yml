@@ -27,6 +27,10 @@ jobs:
       - run: bun dedupe --check
       - run: bunx vp run fmt-check
       - run: bunx vp run lint --format=github
+      # worker-configuration.d.ts は手で直さず cf-typegen で作り直す。diff があれば、wrangler.jsonc か
+      # wrangler の版を変えた後の作り直しが commit に入っていない。
+      - run: bunx vp run -r cf-typegen
+      - run: git diff --exit-code -- 'apps/*/worker-configuration.d.ts'
       - run: bunx vp run -r type-check
       - run: bunx vp run -r test
 

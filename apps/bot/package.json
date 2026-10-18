@@ -1,0 +1,28 @@
+{
+  "name": "@migiwa/bot",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "cf-typegen": "CLOUDFLARE_API_TOKEN= XDG_CONFIG_HOME=node_modules/.cache/wrangler-typegen wrangler types",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@discordjs/rest": "catalog:",
+    "@migiwa/gateway": "workspace:*",
+    "better-result": "catalog:",
+    "discord-api-types": "catalog:",
+    "hono": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "catalog:",
+    "@msw/cloudflare": "catalog:",
+    "msw": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:",
+    "wrangler": "catalog:"
+  },
+  "peerDependencies": {
+    "typescript": "catalog:"
+  }
+}

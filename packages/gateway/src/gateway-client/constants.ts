@@ -16,3 +16,6 @@ export const newSessionCloseCodes = new Set<number>([
   GatewayCloseCodes.InvalidSeq,
   GatewayCloseCodes.SessionTimedOut,
 ]);
+
+export const initialRetryDelay = 1000;
+export const maxRetryDelay = 300_000;

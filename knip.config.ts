@@ -8,4 +8,11 @@ export default {
     // Workspace が使い始める前から、catalog で Worker と package の版を固定している。
     catalog: "off",
   },
+  workspaces: {
+    "apps/*": {
+      // Knip は node: しか組み込みの module として扱わず、cloudflare:workers などを "cloudflare" という
+      // package の import と読む。
+      ignoreDependencies: ["cloudflare"],
+    },
+  },
 } satisfies KnipConfig;

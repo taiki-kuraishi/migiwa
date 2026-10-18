@@ -51,6 +51,11 @@ url = "https://github.com/oven-sh/bun/releases/download/bun-v1.4.3/bun-windows-x
 checksum = "sha256:d7a7d3eb216614544aab0cde2d8d9f2e4e87839bf5a30a1cd11d077f02d84e0c"
 url = "https://github.com/oven-sh/bun/releases/download/bun-v1.4.3/bun-windows-x64-baseline.zip"
 
+[[tools.cloudflare-cf]]
+version = "0.15.0"
+backend = "npm:cf"
+specifiers = ["0.15.0"]
+
 [[tools.fnox]]
 version = "1.39.0"
 backend = "packslip:github.com/jdx/fnox"

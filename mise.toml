@@ -1,5 +1,6 @@
 [tools]
 bun = "1.4.3"
+cloudflare-cf = "0.15.0"
 fnox = "1.39.0"
 lefthook = "2.2.1"
 node = "26.11.1"
