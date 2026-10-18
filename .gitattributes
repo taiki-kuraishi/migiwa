@@ -1,3 +1,4 @@
 apps/*/worker-configuration.d.ts linguist-generated=true
 bun.lock linguist-generated=true
 mise.lock linguist-generated=true
+infra/*/.terraform.lock.hcl linguist-generated=true

@@ -1,0 +1,43 @@
+name: terraform
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - infra/**
+      - .github/workflows/terraform.yml
+      - mise.toml
+      - mise.lock
+  pull_request:
+    paths:
+      - infra/**
+      - .github/workflows/terraform.yml
+      - mise.toml
+      - mise.lock
+
+concurrency:
+  group: terraform-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-slim
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        stack:
+          - aws
+          - cloudflare
+    defaults:
+      run:
+        working-directory: infra/${{ matrix.stack }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
+        with:
+          install_args: terraform
+      - run: terraform fmt -check -recursive -diff
+      # backend の認証を持たないので state には触れず、provider は .terraform.lock.hcl の hash で固定する。
+      - run: terraform init -backend=false -input=false -lockfile=readonly
+      - run: terraform validate
