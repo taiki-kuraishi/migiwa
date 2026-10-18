@@ -11,7 +11,13 @@ import {
 
 import type { Connection, GatewayState } from "./types";
 
-import { newSessionCloseCodes, resumableCloseCode, stopCloseCodes } from "./constants";
+import {
+  initialRetryDelay,
+  maxRetryDelay,
+  newSessionCloseCodes,
+  resumableCloseCode,
+  stopCloseCodes,
+} from "./constants";
 import { GatewayPayloadParseError } from "./errors";
 
 /**
@@ -31,6 +37,9 @@ export class GatewayClient {
   // "connecting" は reconnect を出してから connected() までの間。open できなかった socket の close も
   // 受け取るために区別する。null は socket を待っていない状態で、遅れて届いた入力は捨てる。
   private connection: Connection | "connecting" | null = null;
+  // 永続状態に入れないので、Durable Object が作り直されると 1 秒に戻る。作り直しは deploy か
+  // eviction のときだけで、失敗が続く間に再接続を詰めることにはならない。
+  private retryDelay = initialRetryDelay;
 
   /**
    * Bot token・intents・永続状態を受け取り、まだ socket の無い状態で作る。
@@ -80,7 +89,7 @@ export class GatewayClient {
   /**
    * 開いている socket から届いた text frame を処理する。
    * 1. socket が open していなければ frame を捨てる
-   * 2. frame を payload として読めなければ close して RESUME する
+   * 2. frame を payload として読めなければ close し、backoff の後に RESUME する
    * 3. opcode で分岐する
    */
   public received(text: string) {
@@ -89,11 +98,11 @@ export class GatewayClient {
       return [];
     }
 
-    // Step 2: frame を payload として読めなければ close して RESUME する
+    // Step 2: frame を payload として読めなければ close し、backoff の後に RESUME する
     const payload = this.parse(text);
 
     if (payload.isErr()) {
-      return this.closeAndReconnect({ at: this.now(), resume: true });
+      return this.closeAndReconnect({ at: this.backoff(), resume: true });
     }
 
     // Step 3: opcode で分岐する
@@ -105,8 +114,8 @@ export class GatewayClient {
    * 1. socket を待っていなければ close を無視する
    * 2. 閉じた socket を忘れる
    * 3. Discord が再接続不可とする close code なら止まる
-   * 4. それ以外はすぐに再接続する: 4007 invalid seq と 4009 session timed out は新しい session を
-   *    IDENTIFY、ほかの code は RESUME
+   * 4. それ以外は backoff の後に再接続する: 4007 invalid seq と 4009 session timed out は新しい
+   *    session を IDENTIFY、ほかの code は RESUME
    */
   public disconnected(code: number) {
     // Step 1: socket を待っていなければ close を無視する
@@ -122,15 +131,15 @@ export class GatewayClient {
       return [{ type: "stop", reason: `${GatewayCloseCodes[code]} (${code})` } as const];
     }
 
-    // Step 4: それ以外はすぐに再接続する: 4007 invalid seq と 4009 session timed out は新しい session を
-    // IDENTIFY、ほかの code は RESUME
-    return [this.reconnect({ at: this.now(), resume: !newSessionCloseCodes.has(code) })];
+    // Step 4: それ以外は backoff の後に再接続する: 4007 invalid seq と 4009 session timed out は新しい
+    // session を IDENTIFY、ほかの code は RESUME
+    return [this.reconnect({ at: this.backoff(), resume: !newSessionCloseCodes.has(code) })];
   }
 
   /**
    * 時刻になった heartbeat を送る。
    * 1. socket が open していない、または HELLO の前なら何もしない
-   * 2. 直前の heartbeat に ACK が無ければ close して RESUME する
+   * 2. 直前の heartbeat に ACK が無ければ close し、backoff の後に RESUME する
    * 3. 最後の sequence を heartbeat で送り、1 間隔後に次の heartbeat を予約する
    */
   public heartbeatDue() {
@@ -143,9 +152,9 @@ export class GatewayClient {
       return [];
     }
 
-    // Step 2: 直前の heartbeat に ACK が無ければ close して RESUME する
+    // Step 2: 直前の heartbeat に ACK が無ければ close し、backoff の後に RESUME する
     if (!this.connection.acked) {
-      return this.closeAndReconnect({ at: this.now(), resume: true });
+      return this.closeAndReconnect({ at: this.backoff(), resume: true });
     }
 
     // Step 3: 最後の sequence を heartbeat で送り、1 間隔後に次の heartbeat を予約する
@@ -262,7 +271,8 @@ export class GatewayClient {
    * Dispatch を記録して event を渡す。
    * 1. sequence を保存する
    * 2. READY なら session ID と resume URL も保存する
-   * 3. event を渡す
+   * 3. READY か RESUMED なら接続できたので、再接続の間隔を 1 秒に戻す
+   * 4. event を渡す
    */
   private dispatch(payload: GatewayDispatchPayload) {
     // Step 1: sequence を保存する
@@ -274,7 +284,12 @@ export class GatewayClient {
       this.persistent.resumeUrl = payload.d.resume_gateway_url;
     }
 
-    // Step 3: event を渡す
+    // Step 3: READY か RESUMED なら接続できたので、再接続の間隔を 1 秒に戻す
+    if (payload.t === GatewayDispatchEvents.Ready || payload.t === GatewayDispatchEvents.Resumed) {
+      this.retryDelay = initialRetryDelay;
+    }
+
+    // Step 4: event を渡す
     return [
       {
         type: "dispatch",
@@ -293,6 +308,16 @@ export class GatewayClient {
    */
   private closeAndReconnect(args: { at: number; resume: boolean }) {
     return [{ type: "disconnect", code: resumableCloseCode } as const, this.reconnect(args)];
+  }
+
+  /**
+   * 失敗の後に再接続する時刻を返し、次の間隔を倍にする（上限は maxRetryDelay）。
+   */
+  private backoff() {
+    // 間隔の 1/2〜1 に散らす。上に散らすと上限を超え、下限が無いと再接続が詰まる。
+    const at = this.now() + this.retryDelay * (0.5 + this.random() / 2);
+    this.retryDelay = Math.min(this.retryDelay * 2, maxRetryDelay);
+    return at;
   }
 
   /**

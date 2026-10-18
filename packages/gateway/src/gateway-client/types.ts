@@ -1,3 +1,5 @@
+import type { GatewayClient } from "./gateway-client";
+
 export interface GatewayState {
   sessionId: string | null;
   sequence: number | null;
@@ -11,3 +13,8 @@ export interface Connection {
   heartbeatInterval: number | null;
   acked: boolean;
 }
+
+// Durable Object が実行する出力。入力 method の戻り値から導出し、出力を足しても手で直さずに済むようにする。
+export type GatewayOutput = ReturnType<
+  GatewayClient["start" | "connected" | "received" | "disconnected" | "heartbeatDue"]
+>[number];

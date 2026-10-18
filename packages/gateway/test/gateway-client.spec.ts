@@ -186,7 +186,7 @@ describe("heartbeat", () => {
     ]);
   });
 
-  test("closes with a resumable code and resumes when the previous heartbeat got no ACK", () => {
+  test("closes with a resumable code and resumes after the backoff when the previous heartbeat got no ACK", () => {
     // Arrange
     const client = createReadyClient();
     client.heartbeatDue();
@@ -197,7 +197,7 @@ describe("heartbeat", () => {
     // Assert
     expect(outputs).toEqual([
       { type: "disconnect", code: 4000 },
-      { type: "reconnect", at: now, url: `${resumeUrl}/?v=10&encoding=json`, resume: true },
+      { type: "reconnect", at: now + 750, url: `${resumeUrl}/?v=10&encoding=json`, resume: true },
     ]);
   });
 
@@ -228,7 +228,7 @@ describe("heartbeat", () => {
 
 describe("received", () => {
   test.each(["not json", "null", "42", '{"d":null}', '{"op":"10"}'])(
-    "closes with a resumable code and resumes on a frame that is not a payload: %s",
+    "closes with a resumable code and resumes after the backoff on a frame that is not a payload: %s",
     (text) => {
       // Arrange
       const client = createReadyClient();
@@ -239,7 +239,7 @@ describe("received", () => {
       // Assert
       expect(outputs).toEqual([
         { type: "disconnect", code: 4000 },
-        { type: "reconnect", at: now, url: `${resumeUrl}/?v=10&encoding=json`, resume: true },
+        { type: "reconnect", at: now + 750, url: `${resumeUrl}/?v=10&encoding=json`, resume: true },
       ]);
     },
   );
@@ -330,7 +330,7 @@ describe("disconnected", () => {
     expect(outputs).toEqual([{ type: "stop", reason: `${name} (${code})` }]);
   });
 
-  test.each([4007, 4009])("starts a new session on close code %i", (code) => {
+  test.each([4007, 4009])("starts a new session after the backoff on close code %i", (code) => {
     // Arrange
     const client = createReadyClient();
 
@@ -339,12 +339,12 @@ describe("disconnected", () => {
 
     // Assert
     expect(outputs).toEqual([
-      { type: "reconnect", at: now, url: `${gatewayUrl}/?v=10&encoding=json`, resume: false },
+      { type: "reconnect", at: now + 750, url: `${gatewayUrl}/?v=10&encoding=json`, resume: false },
     ]);
   });
 
   test.each([1000, 1006, 4000, 4001, 4002, 4003, 4005, 4008])(
-    "resumes on close code %i",
+    "resumes after the backoff on close code %i",
     (code) => {
       // Arrange
       const client = createReadyClient();
@@ -354,7 +354,7 @@ describe("disconnected", () => {
 
       // Assert
       expect(outputs).toEqual([
-        { type: "reconnect", at: now, url: `${resumeUrl}/?v=10&encoding=json`, resume: true },
+        { type: "reconnect", at: now + 750, url: `${resumeUrl}/?v=10&encoding=json`, resume: true },
       ]);
     },
   );
@@ -371,7 +371,7 @@ describe("disconnected", () => {
 
     // Assert
     expect(outputs).toEqual([
-      { type: "reconnect", at: now, url: `${gatewayUrl}/?v=10&encoding=json`, resume: false },
+      { type: "reconnect", at: now + 750, url: `${gatewayUrl}/?v=10&encoding=json`, resume: false },
     ]);
   });
 
@@ -385,7 +385,7 @@ describe("disconnected", () => {
 
     // Assert
     expect(outputs).toEqual([
-      { type: "reconnect", at: now, url: `${gatewayUrl}/?v=10&encoding=json`, resume: false },
+      { type: "reconnect", at: now + 750, url: `${gatewayUrl}/?v=10&encoding=json`, resume: false },
     ]);
   });
 
@@ -399,7 +399,7 @@ describe("disconnected", () => {
 
     // Assert
     expect(outputs).toEqual([
-      { type: "reconnect", at: now, url: `${resumeUrl}/?v=10&encoding=json`, resume: true },
+      { type: "reconnect", at: now + 750, url: `${resumeUrl}/?v=10&encoding=json`, resume: true },
     ]);
   });
 
@@ -413,5 +413,69 @@ describe("disconnected", () => {
 
     // Assert
     expect(outputs).toEqual([]);
+  });
+});
+
+describe("backoff", () => {
+  test("doubles the wait on each failure up to 5 minutes, spread to 1/2-1 of the interval", () => {
+    // Arrange
+    const client = createClient({ state: freshState });
+    client.start();
+
+    // Act
+    const waits = Array.from({ length: 11 }, () => {
+      const [output] = client.disconnected(1006);
+      return output?.type === "reconnect" ? output.at - now : null;
+    });
+
+    // Assert
+    expect(waits).toEqual([
+      750, 1500, 3000, 6000, 12_000, 24_000, 48_000, 96_000, 192_000, 225_000, 225_000,
+    ]);
+  });
+
+  test("returns to 1 second after READY", () => {
+    // Arrange
+    const client = createClient({ state: freshState });
+    client.start();
+    client.disconnected(1006);
+    client.disconnected(1006);
+    client.connected();
+    client.received(hello);
+    client.received(ready);
+
+    // Act
+    const outputs = client.disconnected(1006);
+
+    // Assert
+    expect(outputs).toEqual([
+      { type: "reconnect", at: now + 750, url: `${resumeUrl}/?v=10&encoding=json`, resume: true },
+    ]);
+  });
+
+  test("returns to 1 second after RESUMED", () => {
+    // Arrange
+    const client = createClient({ state: resumableState });
+    client.start();
+    client.disconnected(1006);
+    client.disconnected(1006);
+    client.connected();
+    client.received(hello);
+    client.received(
+      JSON.stringify({
+        op: GatewayOpcodes.Dispatch,
+        t: GatewayDispatchEvents.Resumed,
+        s: 43,
+        d: {},
+      }),
+    );
+
+    // Act
+    const outputs = client.disconnected(1006);
+
+    // Assert
+    expect(outputs).toEqual([
+      { type: "reconnect", at: now + 750, url: `${resumeUrl}/?v=10&encoding=json`, resume: true },
+    ]);
   });
 });

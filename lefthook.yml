@@ -16,3 +16,5 @@ pre-commit:
       run: bunx vp run -r test
     knip:
       run: bunx vp run knip
+    cf-typegen:
+      run: bunx vp run -r cf-typegen && git diff --exit-code -- 'apps/*/worker-configuration.d.ts'

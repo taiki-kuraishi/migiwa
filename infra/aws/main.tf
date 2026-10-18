@@ -13,3 +13,8 @@ resource "aws_secretsmanager_secret" "cloudflare_maintenance_token" {
   name        = "MIGIWA_CLOUDFLARE_MAINTENANCE_TOKEN"
   description = "Service credential for Basin Catalog compaction and snapshot expiration on migiwa-events."
 }
+
+resource "aws_secretsmanager_secret" "discord_bot_token" {
+  name        = "MIGIWA_DISCORD_BOT_TOKEN"
+  description = "Discord bot token that infra/cloudflare puts in the Secrets Store for the bot Worker."
+}

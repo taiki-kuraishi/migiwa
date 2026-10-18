@@ -22,3 +22,8 @@ output "table" {
   description = "Fully qualified Iceberg table the sink writes to."
   value       = "${var.namespace}.${var.table_name}"
 }
+
+output "secrets_store_id" {
+  description = "Store ID for the secrets_store_secrets binding in the bot Worker's wrangler.jsonc."
+  value       = cloudflare_secrets_store_secret.discord_bot_token.store_id
+}
