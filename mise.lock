@@ -284,3 +284,53 @@ url = "https://releases.hashicorp.com/terraform/1.16.5/terraform_1.16.5_windows_
 [tools.terraform."platforms.windows-x64-baseline"]
 checksum = "sha256:01700102b7291f95c0ab61394b55bfd5f57a12ac65632c2c1958691c8cf438ef"
 url = "https://releases.hashicorp.com/terraform/1.16.5/terraform_1.16.5_windows_amd64.zip"
+
+[[tools.turso]]
+version = "1.0.34"
+backend = "aqua:tursodatabase/turso-cli"
+specifiers = ["1.0.34"]
+
+[tools.turso."platforms.linux-arm64"]
+checksum = "sha256:5cdc15a9a04841142729ec1ab3ee7fea77dcf2d2cba1701ac218c83f6fe6c2f5"
+url = "https://github.com/tursodatabase/turso-cli/releases/download/v1.0.34/turso-cli_Linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/tursodatabase/turso-cli/releases/assets/620008689"
+
+[tools.turso."platforms.linux-arm64-musl"]
+checksum = "sha256:5cdc15a9a04841142729ec1ab3ee7fea77dcf2d2cba1701ac218c83f6fe6c2f5"
+url = "https://github.com/tursodatabase/turso-cli/releases/download/v1.0.34/turso-cli_Linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/tursodatabase/turso-cli/releases/assets/620008689"
+
+[tools.turso."platforms.linux-x64"]
+checksum = "sha256:9eb67f3efece578a6407d1fa535a75e8d7b5cde4f6af3ac1dd79929e99768dc9"
+url = "https://github.com/tursodatabase/turso-cli/releases/download/v1.0.34/turso-cli_Linux_x86_64.tar.gz"
+url_api = "https://api.github.com/repos/tursodatabase/turso-cli/releases/assets/620008692"
+
+[tools.turso."platforms.linux-x64-baseline"]
+checksum = "sha256:9eb67f3efece578a6407d1fa535a75e8d7b5cde4f6af3ac1dd79929e99768dc9"
+url = "https://github.com/tursodatabase/turso-cli/releases/download/v1.0.34/turso-cli_Linux_x86_64.tar.gz"
+url_api = "https://api.github.com/repos/tursodatabase/turso-cli/releases/assets/620008692"
+
+[tools.turso."platforms.linux-x64-musl"]
+checksum = "sha256:9eb67f3efece578a6407d1fa535a75e8d7b5cde4f6af3ac1dd79929e99768dc9"
+url = "https://github.com/tursodatabase/turso-cli/releases/download/v1.0.34/turso-cli_Linux_x86_64.tar.gz"
+url_api = "https://api.github.com/repos/tursodatabase/turso-cli/releases/assets/620008692"
+
+[tools.turso."platforms.linux-x64-musl-baseline"]
+checksum = "sha256:9eb67f3efece578a6407d1fa535a75e8d7b5cde4f6af3ac1dd79929e99768dc9"
+url = "https://github.com/tursodatabase/turso-cli/releases/download/v1.0.34/turso-cli_Linux_x86_64.tar.gz"
+url_api = "https://api.github.com/repos/tursodatabase/turso-cli/releases/assets/620008692"
+
+[tools.turso."platforms.macos-arm64"]
+checksum = "sha256:b182a192dbb9b5f4f150430efeefca1b1185bdead789d1b55ae6aa73e83838c3"
+url = "https://github.com/tursodatabase/turso-cli/releases/download/v1.0.34/turso-cli_Darwin_arm64.tar.gz"
+url_api = "https://api.github.com/repos/tursodatabase/turso-cli/releases/assets/620008690"
+
+[tools.turso."platforms.macos-x64"]
+checksum = "sha256:db4b640547135436f4e96729a84d8cd699e855a86057ef93dd827eb2fee9f0e2"
+url = "https://github.com/tursodatabase/turso-cli/releases/download/v1.0.34/turso-cli_Darwin_x86_64.tar.gz"
+url_api = "https://api.github.com/repos/tursodatabase/turso-cli/releases/assets/620008691"
+
+[tools.turso."platforms.macos-x64-baseline"]
+checksum = "sha256:db4b640547135436f4e96729a84d8cd699e855a86057ef93dd827eb2fee9f0e2"
+url = "https://github.com/tursodatabase/turso-cli/releases/download/v1.0.34/turso-cli_Darwin_x86_64.tar.gz"
+url_api = "https://api.github.com/repos/tursodatabase/turso-cli/releases/assets/620008691"

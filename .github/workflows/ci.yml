@@ -31,6 +31,12 @@ jobs:
       # wrangler の版を変えた後の作り直しが commit に入っていない。
       - run: bunx vp run -r cf-typegen
       - run: git diff --exit-code -- 'apps/*/worker-configuration.d.ts'
+      # migration は schema を変えた後に drizzle-kit generate で作る。差分か新しい file があれば、その
+      # migration が commit に入っていない。
+      - run: bunx vp run --filter @migiwa/db generate
+      - run: |
+          git diff --exit-code -- packages/db/drizzle
+          test -z "$(git ls-files --others --exclude-standard -- packages/db/drizzle)"
       - run: bunx vp run -r type-check
       - run: bunx vp run -r test
 

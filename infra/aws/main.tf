@@ -18,3 +18,8 @@ resource "aws_secretsmanager_secret" "discord_bot_token" {
   name        = "MIGIWA_DISCORD_BOT_TOKEN"
   description = "Discord bot token that infra/cloudflare puts in the Secrets Store for the bot Worker."
 }
+
+resource "aws_secretsmanager_secret" "turso_auth_token" {
+  name        = "MIGIWA_TURSO_AUTH_TOKEN"
+  description = "Turso auth token for the migiwa-aggregates database."
+}
