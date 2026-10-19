@@ -3,8 +3,8 @@ import { describe, expect, test } from "vitest";
 
 import { EventStreamClient } from "../src/client/event-stream-client";
 
-describe("send", () => {
-  test("gives up on a stream that does not accept the record within 10 seconds", async () => {
+describe("EventStreamClient の send", () => {
+  test("10 秒以内に record を受け付けない stream は諦める", async () => {
     // Arrange
     const client = new EventStreamClient({
       stream: { send: async () => Promise.withResolvers<undefined>().promise },
