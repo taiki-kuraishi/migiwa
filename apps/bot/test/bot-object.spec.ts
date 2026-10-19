@@ -68,8 +68,8 @@ afterEach(async () => {
   network.resetHandlers();
 });
 
-describe("start", () => {
-  test("logs and stays idle when the bot token cannot be read", async () => {
+describe("bot の起動", () => {
+  test("bot token を読めなければ、log に出して何もしない", async () => {
     // Arrange
     const errors = vi.spyOn(console, "error");
     vi.spyOn(env.DISCORD_BOT_TOKEN, "get").mockRejectedValue(new Error("Secret not found"));
@@ -91,7 +91,7 @@ describe("start", () => {
   });
 });
 
-describe("dispatch", () => {
+describe("dispatch の記録", () => {
   test.each([
     {
       t: "MESSAGE_CREATE",
@@ -133,7 +133,7 @@ describe("dispatch", () => {
       d: { user: { id: "user" }, guild_id: "guild" },
       ids: { guild_id: "guild", channel_id: null, user_id: "user" },
     },
-  ])("sends $t to the stream as a record with the IDs outside arrays", async ({ t, d, ids }) => {
+  ])("$t を、配列の外の ID を持つ record として stream に送る", async ({ t, d, ids }) => {
     // Arrange
     const sent = vi.spyOn(env.EVENTS, "send").mockResolvedValue(undefined);
     const connected = await connect({ sessionId: "session-record" });
@@ -158,7 +158,7 @@ describe("dispatch", () => {
     }, poll);
   });
 
-  test("logs a dispatch the stream rejects and keeps recording the next one", async () => {
+  test("stream が拒んだ dispatch は log に出し、次の dispatch の記録を続ける", async () => {
     // Arrange
     const errors = vi.spyOn(console, "error");
     const sent = vi.spyOn(env.EVENTS, "send").mockResolvedValue(undefined);
@@ -184,7 +184,7 @@ describe("dispatch", () => {
     );
   });
 
-  test("logs a dispatch without a type instead of sending it", async () => {
+  test("type の無い dispatch は送らずに log に出す", async () => {
     // Arrange
     const errors = vi.spyOn(console, "error");
     const connected = await connect({ sessionId: "session-invalid" });
@@ -207,8 +207,8 @@ describe("dispatch", () => {
   });
 });
 
-describe("stalled stream", () => {
-  test("keeps sending heartbeats from the alarm while a record send hangs", async () => {
+describe("stream が止まったとき", () => {
+  test("record の送信が止まっている間も、alarm から heartbeat を送り続ける", async () => {
     // Arrange
     vi.spyOn(env.EVENTS, "send").mockImplementation(
       async () => Promise.withResolvers<undefined>().promise,
@@ -234,8 +234,8 @@ describe("stalled stream", () => {
   });
 });
 
-describe("heartbeat", () => {
-  test("sends the last sequence from the alarm at every HELLO interval", async () => {
+describe("heartbeat の送信", () => {
+  test("HELLO の間隔ごとに、alarm から最後の sequence を送る", async () => {
     // Arrange
     const discord = useDiscord({ sessionId: "session-heartbeat", heartbeatInterval: 100 });
 
@@ -253,7 +253,7 @@ describe("heartbeat", () => {
     }, poll);
   });
 
-  test("closes with 4000 and resumes on the resume URL when a heartbeat gets no ACK", async () => {
+  test("heartbeat に ACK が無ければ、4000 で閉じて resume URL で RESUME する", async () => {
     // Arrange
     const discord = useDiscord({
       sessionId: "session-zombie",
@@ -279,8 +279,8 @@ describe("heartbeat", () => {
   });
 });
 
-describe("reconnect", () => {
-  test("resumes on the resume URL after the backoff when Discord closes the socket", async () => {
+describe("再接続", () => {
+  test("Discord が socket を閉じたら、backoff の後に resume URL で RESUME する", async () => {
     // Arrange
     const connected = await connect({ sessionId: "session-closed" });
     const closedAt = Date.now();
@@ -303,8 +303,8 @@ describe("reconnect", () => {
   });
 });
 
-describe("hello", () => {
-  test("closes with 4000 and connects again when HELLO does not arrive in time", async () => {
+describe("HELLO の待ち受け", () => {
+  test("HELLO が時間内に届かなければ、4000 で閉じて接続し直す", async () => {
     // Arrange
     const discord = useDiscord({ sessionId: "session-hello", helloOnFirstConnection: false });
 
@@ -323,8 +323,8 @@ describe("hello", () => {
   });
 });
 
-describe("handshake", () => {
-  test("logs each IDENTIFY it sends without the token", async () => {
+describe("handshake の log", () => {
+  test("送る IDENTIFY を、token を除いて毎回 log に出す", async () => {
     // Arrange
     const logs = vi.spyOn(console, "log");
 
@@ -336,8 +336,8 @@ describe("handshake", () => {
   });
 });
 
-describe("restart", () => {
-  test("resumes the session stored before the object restarted", async () => {
+describe("object の再起動", () => {
+  test("object の再起動前に保存した session を RESUME する", async () => {
     // Arrange
     const discord = useDiscord({ sessionId: "unused" });
     const bot = createBot();
@@ -355,7 +355,7 @@ describe("restart", () => {
     });
   });
 
-  test("identifies on the gateway URL when Discord rejects the stored session", async () => {
+  test("保存した session を Discord が拒んだら、gateway URL で IDENTIFY する", async () => {
     // Arrange
     const discord = useDiscord({ sessionId: "session-new", resumable: false });
     const bot = createBot();

@@ -27,7 +27,7 @@ afterEach(async () => {
   network.resetHandlers();
 });
 
-test("GET /health returns the status of the bot the cron tick connected", async () => {
+test("GET /health は、cron tick が接続した bot の状態を返す", async () => {
   // Arrange
   const discord = mockDiscord({ sessionId: "session-health" });
   stopDiscord = discord.stop;

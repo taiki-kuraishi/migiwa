@@ -8,8 +8,8 @@ const privileged =
   GatewayIntentBits.GuildMembers |
   GatewayIntentBits.MessageContent;
 
-describe("deriveIntents", () => {
-  test("includes every non-privileged intent and no privileged one without flags", () => {
+describe("Application の flag から intent を求める deriveIntents", () => {
+  test("flag が無ければ、特権でない intent をすべて含み、特権 intent は含まない", () => {
     // Act
     const intents = deriveIntents(0);
 
@@ -44,7 +44,7 @@ describe("deriveIntents", () => {
     [ApplicationFlags.GatewayGuildMembersLimited, GatewayIntentBits.GuildMembers],
     [ApplicationFlags.GatewayMessageContent, GatewayIntentBits.MessageContent],
     [ApplicationFlags.GatewayMessageContentLimited, GatewayIntentBits.MessageContent],
-  ])("flag %i adds only privileged intent %i", (flag, intent) => {
+  ])("flag %i は特権 intent %i だけを追加する", (flag, intent) => {
     // Act
     const intents = deriveIntents(flag);
 

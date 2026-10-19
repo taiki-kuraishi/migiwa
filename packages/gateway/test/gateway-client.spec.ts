@@ -43,8 +43,8 @@ const createReadyClient = () => {
   return client;
 };
 
-describe("start", () => {
-  test("connects to the gateway URL to identify when no session is stored", () => {
+describe("start で接続を始める", () => {
+  test("session が保存されていなければ、gateway URL に接続して IDENTIFY する", () => {
     // Arrange
     const client = createClient({ state: freshState });
 
@@ -57,7 +57,7 @@ describe("start", () => {
     ]);
   });
 
-  test("connects to the resume URL to resume when a session is stored", () => {
+  test("session が保存されていれば、resume URL に接続して RESUME する", () => {
     // Arrange
     const client = createClient({ state: resumableState });
 
@@ -71,8 +71,8 @@ describe("start", () => {
   });
 });
 
-describe("HELLO", () => {
-  test("sends IDENTIFY and schedules the first heartbeat after a jittered interval", () => {
+describe("HELLO を受け取る", () => {
+  test("IDENTIFY を送り、最初の heartbeat を jitter をかけた間隔の後に予約する", () => {
     // Arrange
     const client = createClient({ state: freshState });
     client.start();
@@ -98,7 +98,7 @@ describe("HELLO", () => {
     ]);
   });
 
-  test("sends RESUME with the stored session and sequence", () => {
+  test("保存された session と sequence で RESUME を送る", () => {
     // Arrange
     const client = createClient({ state: resumableState });
     client.start();
@@ -118,8 +118,8 @@ describe("HELLO", () => {
   });
 });
 
-describe("dispatch", () => {
-  test("READY stores the session ID, sequence and resume URL", () => {
+describe("dispatch を受け取る", () => {
+  test("READY で session ID・sequence・resume URL を保存する", () => {
     // Arrange
     const client = createClient({ state: freshState });
     client.start();
@@ -144,7 +144,7 @@ describe("dispatch", () => {
     expect(client.state).toEqual({ sessionId: "session-2", sequence: 1, resumeUrl, gatewayUrl });
   });
 
-  test("passes later events on with the session ID and advances the sequence", () => {
+  test("以降の event を session ID 付きで渡し、sequence を進める", () => {
     // Arrange
     const client = createClient({ state: freshState });
     client.start();
@@ -171,8 +171,8 @@ describe("dispatch", () => {
   });
 });
 
-describe("heartbeat", () => {
-  test("sends the last sequence and schedules the next one when the previous was acknowledged", () => {
+describe("heartbeat を送る", () => {
+  test("前回に ACK が返っていれば、最後の sequence を送り次を予約する", () => {
     // Arrange
     const client = createReadyClient();
 
@@ -186,7 +186,7 @@ describe("heartbeat", () => {
     ]);
   });
 
-  test("closes with a resumable code and resumes after the backoff when the previous heartbeat got no ACK", () => {
+  test("前回の heartbeat に ACK が無ければ、resume できる code で閉じ、backoff の後に RESUME する", () => {
     // Arrange
     const client = createReadyClient();
     client.heartbeatDue();
@@ -201,7 +201,7 @@ describe("heartbeat", () => {
     ]);
   });
 
-  test("keeps the connection when the ACK arrived before the next heartbeat", () => {
+  test("次の heartbeat までに ACK が届けば、接続を保つ", () => {
     // Arrange
     const client = createReadyClient();
     client.heartbeatDue();
@@ -214,7 +214,7 @@ describe("heartbeat", () => {
     expect(outputs[0]).toEqual({ type: "send", payload: { op: GatewayOpcodes.Heartbeat, d: 2 } });
   });
 
-  test("answers a heartbeat request immediately", () => {
+  test("heartbeat の要求にはすぐ応える", () => {
     // Arrange
     const client = createReadyClient();
 
@@ -226,9 +226,9 @@ describe("heartbeat", () => {
   });
 });
 
-describe("received", () => {
+describe("frame を受け取る", () => {
   test.each(["not json", "null", "42", '{"d":null}', '{"op":"10"}'])(
-    "closes with a resumable code and resumes after the backoff on a frame that is not a payload: %s",
+    "payload でない frame を受け取ると、resume できる code で閉じ、backoff の後に RESUME する: %s",
     (text) => {
       // Arrange
       const client = createReadyClient();
@@ -244,7 +244,7 @@ describe("received", () => {
     },
   );
 
-  test("ignores frames and heartbeats before the socket opens", () => {
+  test("socket が開く前の frame と heartbeat は無視する", () => {
     // Arrange
     const client = createClient({ state: freshState });
     client.start();
@@ -257,8 +257,8 @@ describe("received", () => {
   });
 });
 
-describe("op 7 reconnect", () => {
-  test("closes with a resumable code and resumes on the resume URL", () => {
+describe("op 7 reconnect を受け取る", () => {
+  test("resume できる code で閉じ、resume URL で RESUME する", () => {
     // Arrange
     const client = createReadyClient();
 
@@ -273,8 +273,8 @@ describe("op 7 reconnect", () => {
   });
 });
 
-describe("op 9 invalid session", () => {
-  test("resumes after the 1-5 second wait when d is true", () => {
+describe("op 9 invalid session を受け取る", () => {
+  test("d が true なら、1〜5 秒待ってから RESUME する", () => {
     // Arrange
     const client = createReadyClient();
 
@@ -288,7 +288,7 @@ describe("op 9 invalid session", () => {
     ]);
   });
 
-  test("drops the session and identifies on the gateway URL after the wait when d is false", () => {
+  test("d が false なら、session を捨て、待った後に gateway URL で IDENTIFY する", () => {
     // Arrange
     const client = createReadyClient();
 
@@ -311,7 +311,7 @@ describe("op 9 invalid session", () => {
   });
 });
 
-describe("disconnected", () => {
+describe("接続が切れる", () => {
   test.each([
     [4004, "AuthenticationFailed"],
     [4010, "InvalidShard"],
@@ -319,7 +319,7 @@ describe("disconnected", () => {
     [4012, "InvalidAPIVersion"],
     [4013, "InvalidIntents"],
     [4014, "DisallowedIntents"],
-  ])("stops on close code %i", (code, name) => {
+  ])("close code %i では停止する", (code, name) => {
     // Arrange
     const client = createReadyClient();
 
@@ -330,7 +330,7 @@ describe("disconnected", () => {
     expect(outputs).toEqual([{ type: "stop", reason: `${name} (${code})` }]);
   });
 
-  test.each([4007, 4009])("starts a new session after the backoff on close code %i", (code) => {
+  test.each([4007, 4009])("close code %i では、backoff の後に新しい session を始める", (code) => {
     // Arrange
     const client = createReadyClient();
 
@@ -344,7 +344,7 @@ describe("disconnected", () => {
   });
 
   test.each([1000, 1006, 4000, 4001, 4002, 4003, 4005, 4008])(
-    "resumes after the backoff on close code %i",
+    "close code %i では、backoff の後に RESUME する",
     (code) => {
       // Arrange
       const client = createReadyClient();
@@ -359,7 +359,7 @@ describe("disconnected", () => {
     },
   );
 
-  test("identifies when the connection drops before READY", () => {
+  test("READY の前に接続が切れたら IDENTIFY する", () => {
     // Arrange
     const client = createClient({ state: freshState });
     client.start();
@@ -375,7 +375,7 @@ describe("disconnected", () => {
     ]);
   });
 
-  test("retries when the first socket fails before it opens", () => {
+  test("最初の socket が開く前に失敗したら、やり直す", () => {
     // Arrange
     const client = createClient({ state: freshState });
     client.start();
@@ -389,7 +389,7 @@ describe("disconnected", () => {
     ]);
   });
 
-  test("retries the resume when the socket opened for op 7 fails before it opens", () => {
+  test("op 7 で開いた socket が開く前に失敗したら、RESUME をやり直す", () => {
     // Arrange
     const client = createReadyClient();
     client.received(JSON.stringify({ op: GatewayOpcodes.Reconnect, d: null }));
@@ -403,7 +403,7 @@ describe("disconnected", () => {
     ]);
   });
 
-  test("ignores a close after it stopped", () => {
+  test("停止した後の close は無視する", () => {
     // Arrange
     const client = createReadyClient();
     client.disconnected(4004);
@@ -416,8 +416,8 @@ describe("disconnected", () => {
   });
 });
 
-describe("backoff", () => {
-  test("doubles the wait on each failure up to 5 minutes, spread to 1/2-1 of the interval", () => {
+describe("再接続の backoff", () => {
+  test("失敗ごとに待ち時間を 5 分まで倍にし、間隔の 1/2〜1 に散らす", () => {
     // Arrange
     const client = createClient({ state: freshState });
     client.start();
@@ -434,7 +434,7 @@ describe("backoff", () => {
     ]);
   });
 
-  test("returns to 1 second after READY", () => {
+  test("READY の後は 1 秒に戻る", () => {
     // Arrange
     const client = createClient({ state: freshState });
     client.start();
@@ -453,7 +453,7 @@ describe("backoff", () => {
     ]);
   });
 
-  test("returns to 1 second after RESUMED", () => {
+  test("RESUMED の後は 1 秒に戻る", () => {
     // Arrange
     const client = createClient({ state: resumableState });
     client.start();
