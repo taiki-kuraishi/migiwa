@@ -4,6 +4,7 @@ export default defineConfig({
   ignorePatterns: [
     ".agents/**",
     "**/worker-configuration.d.ts",
+    "packages/db/drizzle/**",
     // Markdown は手で整形する。oxfmt は表の各列を最も幅の広いセルに揃えるため、docs/specs の
     // 長い文章の表が、セルを 1 つ直すたびに表全体の diff になる。
     "**/*.md",

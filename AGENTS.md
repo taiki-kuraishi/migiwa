@@ -3,6 +3,7 @@
 ## Language
 
 Code comments are in Japanese; code, README, commit messages, and PRs are in English.
+Test names (`describe` / `test` titles) are in Japanese.
 Design specs under `docs/specs/` and plans under `docs/plans/` are in Japanese;
 `docs/plans/` is gitignored.
 
@@ -90,6 +91,10 @@ its generator instead. Each Worker's `worker-configuration.d.ts` comes from
 credentials (`CLOUDFLARE_API_TOKEN=` and a throwaway `XDG_CONFIG_HOME`): with
 them, Wrangler fetches pipeline stream schemas and writes types that CI, which
 has none, cannot reproduce. CI and lefthook regenerate it and fail on a diff.
+Migrations under `packages/db/drizzle/` come from `drizzle-kit generate`
+(`bunx vp run --filter @migiwa/db generate`) after a schema change; do not
+write their SQL by hand. CI and lefthook regenerate them and fail on a diff or
+an uncommitted file.
 
 ## Comments
 
