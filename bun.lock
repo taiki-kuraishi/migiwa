@@ -16,6 +16,26 @@
         "typescript": "catalog:",
       },
     },
+    "apps/aggregator": {
+      "name": "@migiwa/aggregator",
+      "version": "0.0.0",
+      "dependencies": {
+        "@libsql/client": "catalog:",
+        "@migiwa/db": "workspace:*",
+        "better-result": "catalog:",
+        "drizzle-orm": "catalog:",
+      },
+      "devDependencies": {
+        "@cloudflare/vitest-plugin": "catalog:",
+        "msw": "catalog:",
+        "vite-plus": "catalog:",
+        "vitest": "catalog:",
+        "wrangler": "catalog:",
+      },
+      "peerDependencies": {
+        "typescript": "catalog:",
+      },
+    },
     "apps/bot": {
       "name": "@migiwa/bot",
       "version": "0.0.0",
@@ -42,13 +62,12 @@
       "name": "@migiwa/db",
       "version": "0.0.0",
       "dependencies": {
-        "@libsql/client": "catalog:",
-        "better-result": "catalog:",
         "drizzle-orm": "catalog:",
       },
       "devDependencies": {
+        "@libsql/client": "catalog:",
+        "@types/node": "catalog:",
         "drizzle-kit": "catalog:",
-        "vite-plus": "catalog:",
       },
       "peerDependencies": {
         "typescript": "catalog:",
@@ -75,6 +94,7 @@
     "@libsql/client": "0.17.4",
     "@msw/cloudflare": "0.2.0",
     "@types/bun": "1.4.3",
+    "@types/node": "26.6.5",
     "better-result": "3.0.1",
     "discord-api-types": "0.38.56",
     "drizzle-kit": "0.31.10",
@@ -280,6 +300,8 @@
     "@libsql/linux-x64-musl": ["@libsql/linux-x64-musl@0.5.29", "", { "os": "linux", "cpu": "x64" }, "sha512-gquqwA/39tH4pFl+J9n3SOMSymjX+6kZ3kWgY3b94nXFTwac9bnFNMffIomgvlFaC4ArVqMnOZD3nuJ3H3VO1w=="],
 
     "@libsql/win32-x64-msvc": ["@libsql/win32-x64-msvc@0.5.29", "", { "os": "win32", "cpu": "x64" }, "sha512-4/0CvEdhi6+KjMxMaVbFM2n2Z44escBRoEYpR+gZg64DdetzGnYm8mcNLcoySaDJZNaBd6wz5DNdgRmcI4hXcg=="],
+
+    "@migiwa/aggregator": ["@migiwa/aggregator@workspace:apps/aggregator"],
 
     "@migiwa/bot": ["@migiwa/bot@workspace:apps/bot"],
 

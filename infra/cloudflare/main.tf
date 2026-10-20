@@ -85,3 +85,19 @@ resource "cloudflare_secrets_store_secret" "discord_bot_token" {
   scopes     = ["workers"]
   value      = var.discord_bot_token
 }
+
+resource "cloudflare_secrets_store_secret" "basin_sql_token" {
+  account_id = var.account_id
+  store_id   = one(data.cloudflare_secrets_stores.account.result).id
+  name       = var.basin_sql_token_secret_name
+  scopes     = ["workers"]
+  value      = var.basin_sql_token
+}
+
+resource "cloudflare_secrets_store_secret" "turso_auth_token" {
+  account_id = var.account_id
+  store_id   = one(data.cloudflare_secrets_stores.account.result).id
+  name       = var.turso_auth_token_secret_name
+  scopes     = ["workers"]
+  value      = var.turso_auth_token
+}

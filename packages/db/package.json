@@ -12,13 +12,12 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@libsql/client": "catalog:",
-    "better-result": "catalog:",
     "drizzle-orm": "catalog:"
   },
   "devDependencies": {
-    "drizzle-kit": "catalog:",
-    "vite-plus": "catalog:"
+    "@libsql/client": "catalog:",
+    "@types/node": "catalog:",
+    "drizzle-kit": "catalog:"
   },
   "peerDependencies": {
     "typescript": "catalog:"

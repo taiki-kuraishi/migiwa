@@ -24,6 +24,6 @@ output "table" {
 }
 
 output "secrets_store_id" {
-  description = "Store ID for the secrets_store_secrets binding in the bot Worker's wrangler.jsonc."
+  description = "Store ID for the secrets_store_secrets bindings in the Workers' wrangler.jsonc."
   value       = cloudflare_secrets_store_secret.discord_bot_token.store_id
 }

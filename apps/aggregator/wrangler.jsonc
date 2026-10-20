@@ -1,0 +1,39 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "migiwa-aggregator",
+  "main": "./src/entry.ts",
+  // テストと deploy は同じこの設定を読む。@cloudflare/vitest-plugin の workerd が対応する日付より
+  // 新しくすると、テストの runtime が起動しない（2026-10-19 時点で 2026-09-04 まで）。
+  "compatibility_date": "2026-09-04",
+  // AGGREGATION_DELAY_MINUTES（既定 15）より後ろの分に走らせ、直前の 1 時間をその回で集計する。
+  "triggers": { "crons": ["30 * * * *"] },
+  "vars": {
+    // 作者の DB と account で、秘密ではない。self-host する人は書き換える。
+    "TURSO_DATABASE_URL": "libsql://migiwa-aggregates-taiki-kuraishi.aws-ap-northeast-1.turso.io",
+    "BASIN_ACCOUNT_ID": "bd1a33a9922e50b3afff5a2f21ad52d0",
+    // infra/cloudflare の `terraform output bucket_name`。
+    "BASIN_BUCKET": "migiwa-events",
+    // Pipelines が event を table に書くまでの遅れ。この分だけ前までの 1 時間を集計する。遅れて書かれた event
+    // は計算し直さない。
+    "AGGREGATION_DELAY_MINUTES": 15,
+  },
+  // Store は 1 アカウントに 1 つで、infra/cloudflare の `terraform output secrets_store_id`。secret も
+  // infra/cloudflare が作る。
+  "secrets_store_secrets": [
+    {
+      "binding": "BASIN_SQL_TOKEN",
+      "store_id": "9a2d7bd458234f29b84bff50f66669d0",
+      "secret_name": "migiwa-basin-sql-token",
+    },
+    {
+      "binding": "TURSO_AUTH_TOKEN",
+      "store_id": "9a2d7bd458234f29b84bff50f66669d0",
+      "secret_name": "migiwa-turso-auth-token",
+    },
+  ],
+  "observability": { "enabled": true, "traces": { "enabled": true } },
+  // fetch の handler を持たないので、URL を公開しない。
+  "workers_dev": false,
+  "preview_urls": false,
+  "upload_source_maps": true,
+}

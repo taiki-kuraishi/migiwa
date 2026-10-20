@@ -1,8 +1,9 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    // Workers の実行環境に近い型にし、window などブラウザ専用の型は入れない。
-    "lib": ["ESNext", "WebWorker"]
+    // Schema と生成設定だけを検査し、利用側 Worker の runtime 型は持ち込まない。
+    "lib": ["ESNext"],
+    "types": ["node"]
   },
-  "include": ["src", "test", "./*.ts"]
+  "include": ["src", "./*.ts"]
 }
