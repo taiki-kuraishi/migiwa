@@ -25,6 +25,23 @@ variable "discord_bot_token" {
   sensitive   = true
 }
 
+# personal の repo の Terraform（cloudflare_account_token）が発行し、personal の state → fnox → Secrets Manager の
+# MIGIWA_CLOUDFLARE_BASIN_SQL_TOKEN に渡す。`fnox exec` が TF_VAR_basin_sql_token として export する。value は
+# state（S3）に平文で残る。
+variable "basin_sql_token" {
+  description = "Read-only token (Data Catalog Read + Bucket Item Read on migiwa-events + Basin SQL Read) the aggregator Worker queries Basin SQL with."
+  type        = string
+  sensitive   = true
+}
+
+# Secrets Manager の MIGIWA_TURSO_AUTH_TOKEN（packages/db の migrate と同じ token）を、`fnox exec` が
+# TF_VAR_turso_auth_token として export する。value は state（S3）に平文で残る。
+variable "turso_auth_token" {
+  description = "Turso auth token the aggregator Worker writes the migiwa-aggregates database with."
+  type        = string
+  sensitive   = true
+}
+
 # bot と集計の Worker はこれらを名前で参照するので、deploy ごとの入力にせず固定する。
 variable "bucket_name" {
   description = "R2 bucket that holds the Basin Catalog."
@@ -67,4 +84,16 @@ variable "discord_bot_token_secret_name" {
   description = "Secrets Store secret that holds the Discord bot token."
   type        = string
   default     = "migiwa-discord-bot-token"
+}
+
+variable "basin_sql_token_secret_name" {
+  description = "Secrets Store secret that holds the read-only Basin SQL token."
+  type        = string
+  default     = "migiwa-basin-sql-token"
+}
+
+variable "turso_auth_token_secret_name" {
+  description = "Secrets Store secret that holds the Turso auth token."
+  type        = string
+  default     = "migiwa-turso-auth-token"
 }

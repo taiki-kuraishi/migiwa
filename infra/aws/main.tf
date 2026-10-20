@@ -23,3 +23,8 @@ resource "aws_secretsmanager_secret" "turso_auth_token" {
   name        = "MIGIWA_TURSO_AUTH_TOKEN"
   description = "Turso auth token for the migiwa-aggregates database."
 }
+
+resource "aws_secretsmanager_secret" "cloudflare_basin_sql_token" {
+  name        = "MIGIWA_CLOUDFLARE_BASIN_SQL_TOKEN"
+  description = "Read-only Basin SQL token that infra/cloudflare puts in the Secrets Store for the aggregator Worker."
+}

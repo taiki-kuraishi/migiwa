@@ -1,0 +1,26 @@
+{
+  "name": "@migiwa/aggregator",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "cf-typegen": "CLOUDFLARE_API_TOKEN= XDG_CONFIG_HOME=node_modules/.cache/wrangler-typegen wrangler types",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@libsql/client": "catalog:",
+    "@migiwa/db": "workspace:*",
+    "better-result": "catalog:",
+    "drizzle-orm": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "catalog:",
+    "msw": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:",
+    "wrangler": "catalog:"
+  },
+  "peerDependencies": {
+    "typescript": "catalog:"
+  }
+}
