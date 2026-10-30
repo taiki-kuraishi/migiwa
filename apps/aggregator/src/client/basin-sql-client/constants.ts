@@ -5,3 +5,6 @@ export const requestTimeout = 60_000;
 
 // Discord が PRESENCE_UPDATE で送る status。invisible の user も offline として届く。
 export const presenceStatuses = ["online", "idle", "dnd", "offline"] as const;
+
+// Activity の type のうち、ゲーム（Playing）。
+export const gameActivityType = 0;

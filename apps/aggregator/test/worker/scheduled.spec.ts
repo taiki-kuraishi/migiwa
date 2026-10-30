@@ -15,7 +15,7 @@ test("Secrets Store の token を読めない cron は、集計せずに SecretR
 
   // Assert
   expect(errors).toHaveBeenCalledWith({
-    message: "Failed to aggregate presence",
+    message: "Failed to read the secrets",
     error: expect.objectContaining({ _tag: "SecretReadError" }),
   });
 });

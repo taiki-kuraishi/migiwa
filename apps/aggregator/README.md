@@ -6,27 +6,31 @@ database of `@migiwa/db` on an hourly cron.
 ## Responsibilities
 
 - Implements: reading `PRESENCE_UPDATE` from Basin SQL, the database connection and repositories,
-  and writing each user's presence as intervals (`online`, `idle`, `dnd`, `offline`) to
-  `presence_intervals`, cut where the status changes.
+  writing each user's presence as intervals (`online`, `idle`, `dnd`, `offline`) to
+  `presence_intervals`, cut where the status changes, and writing the games each user played
+  (`activities` of type 0) as intervals to `game_intervals`, cut where a game appears or
+  disappears.
 - Does not implement: the schema or migrations (`@migiwa/db`), totals per day or hour
   (the API sums the intervals in SQL), serving the aggregates (REST / MCP), or recomputing hours
   already aggregated. An event that reaches Basin after its hour was aggregated is never used.
 
 ## Behavior
 
-- The cron runs at minute 30 of every hour. Each run aggregates from the last processed time
-  (`aggregation_runs.processed_until` for `presence_intervals`) up to the top of the hour
-  `AGGREGATION_DELAY_MINUTES` (a `vars` entry in `wrangler.jsonc`, default 15) before now, at most
-  24 hours per run, so a backlog after downtime is caught up 24 hours per cron. The first run
-  aggregates only the hour before that.
-- A user's last state is their interval that ended at the previous `processed_until`. If the run
-  starts in the same status, that interval's `ended_at` is extended instead of adding a row; a user
-  with no such interval starts at their first event. Each run closes the open intervals at its end.
+- The cron runs at minute 30 of every hour and runs the presence and the game aggregation in turn;
+  one failing does not stop the other. Each aggregation has its own
+  `aggregation_runs.processed_until` (`presence_intervals`, `game_intervals`) and aggregates from
+  it up to the top of the hour `AGGREGATION_DELAY_MINUTES` (a `vars` entry in `wrangler.jsonc`,
+  default 15) before now, at most 24 hours per run, so a backlog after downtime is caught up 24
+  hours per cron. The first run aggregates only the hour before that.
+- A user's last state is their intervals that ended at the previous `processed_until`. If the run
+  starts in the same status (or still playing the same game), that interval's `ended_at` is
+  extended instead of adding a row; a user with no such interval starts at their first event. Each
+  run closes the open intervals at its end.
 - The same status arriving again (from several servers, or with only an activity change) continues
   the interval, and duplicate dispatches (`session_id`, `seq`) are dropped.
-- The intervals and `processed_until` are written in one transaction that commits only if
-  `processed_until` still holds the value the run read. A run that overlaps another (a slow cron, a
-  manual trigger) writes nothing and logs a warning.
+- Each aggregation writes its intervals and `processed_until` in one transaction that commits only
+  if `processed_until` still holds the value the run read. A run that overlaps another (a slow
+  cron, a manual trigger) writes nothing and logs a warning.
 
 ## Setup
 
