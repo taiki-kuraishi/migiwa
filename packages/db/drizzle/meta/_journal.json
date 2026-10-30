@@ -15,6 +15,13 @@
       "when": 1792413515680,
       "tag": "0001_create_presence_intervals",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1793282199963,
+      "tag": "0002_create_game_intervals",
+      "breakpoints": true
     }
   ]
 }

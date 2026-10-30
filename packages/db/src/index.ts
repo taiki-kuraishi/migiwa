@@ -1,1 +1,1 @@
-export { aggregationRuns, presenceIntervals } from "./schema";
+export { aggregationRuns, gameIntervals, presenceIntervals } from "./schema";

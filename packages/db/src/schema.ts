@@ -26,3 +26,26 @@ export const presenceIntervals = sqliteTable(
     index("presence_intervals_ended_at_idx").on(t.endedAt),
   ],
 );
+
+// 各 user が各ゲームを遊んでいた区間 [started_at, ended_at)。PRESENCE_UPDATE の activities に type 0 が現れた
+// 時刻で開き、消えた時刻で閉じる。切り方と延ばし方は presence_intervals と同じ。
+// game_key は application_id、無ければ name。application_id を主キーにしないのは、NULL だと SQLite の主キーが
+// 一意にならないため。同じゲームが ID の違う 2 つの activity として届くことがあるが、まとめずに別の行にする。
+// official_game_id は Discord が文書化していない値で、まとめる手がかりとして残すだけにする。
+export const gameIntervals = sqliteTable(
+  "game_intervals",
+  {
+    userId: text("user_id").notNull(),
+    gameKey: text("game_key").notNull(),
+    applicationId: text("application_id"),
+    officialGameId: text("official_game_id"),
+    // 同じ application_id でも client の言語で名前が変わるので、区間を開いたときの名前を残す。
+    name: text("name").notNull(),
+    startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
+    endedAt: integer("ended_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.gameKey, t.startedAt] }),
+    index("game_intervals_ended_at_idx").on(t.endedAt),
+  ],
+);
