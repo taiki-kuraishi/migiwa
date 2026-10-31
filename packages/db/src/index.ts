@@ -1,1 +1,7 @@
-export { aggregationRuns, gameIntervals, listeningIntervals, presenceIntervals } from "./schema";
+export {
+  aggregationRuns,
+  gameIntervals,
+  listeningIntervals,
+  presenceIntervals,
+  streamingIntervals,
+} from "./schema";

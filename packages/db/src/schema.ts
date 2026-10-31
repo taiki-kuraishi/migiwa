@@ -74,3 +74,28 @@ export const listeningIntervals = sqliteTable(
     index("listening_intervals_ended_at_idx").on(t.endedAt),
   ],
 );
+
+// 各 user が配信していた区間 [started_at, ended_at)。PRESENCE_UPDATE の activities に type 1 が現れた時刻で開き、
+// 消えた時刻で閉じる。
+// streaming_key は url（配信チャンネル）、無ければ activity の name。配信 1 回ごとの ID は Discord が送らないので、
+// 配信中にタイトル（details）が変わっても区間を切らない。url を主キーにしないのは、url の無い activity で NULL に
+// なり、SQLite の主キーでは NULL が一意にならないため。
+// state は実データ 199 件中 1 件にしか無かったので持たない（2026-10-29 時点）。
+export const streamingIntervals = sqliteTable(
+  "streaming_intervals",
+  {
+    userId: text("user_id").notNull(),
+    streamingKey: text("streaming_key").notNull(),
+    url: text("url"),
+    // 実データでは常に "Twitch" で、url の無い activity を区別する手がかりにならない。
+    name: text("name").notNull(),
+    // 配信タイトル。区間を開いたときの値を残す。
+    details: text("details"),
+    startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
+    endedAt: integer("ended_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.streamingKey, t.startedAt] }),
+    index("streaming_intervals_ended_at_idx").on(t.endedAt),
+  ],
+);
