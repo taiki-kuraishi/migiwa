@@ -11,3 +11,6 @@ export const gameActivityType = 0;
 
 // Activity の type のうち、リスニング（Listening）。
 export const listeningActivityType = 2;
+
+// Activity の type のうち、配信（Streaming）。
+export const streamingActivityType = 1;

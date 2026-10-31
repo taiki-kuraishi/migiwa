@@ -45,3 +45,20 @@ export interface ListeningUpdate {
   // その時点で聴いていた曲のすべて。空なら何も聴いていない。
   listenings: Listening[];
 }
+
+// 1 つの PRESENCE_UPDATE の時点で続けていた配信（activities の type 1）。key は url、無ければ name。
+export interface Streaming {
+  key: string;
+  url: string | null;
+  name: string;
+  details: string | null;
+}
+
+export interface StreamingUpdate {
+  userId: string;
+  receivedAt: Date;
+  sessionId: string;
+  seq: number | null;
+  // その時点で続けていた配信のすべて。空なら配信していない。
+  streamings: Streaming[];
+}

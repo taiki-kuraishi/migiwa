@@ -1,10 +1,19 @@
 import { Result } from "better-result";
 
-import type { Game, GameUpdate, Listening, ListeningUpdate, PresenceUpdate } from "./types";
+import type {
+  Game,
+  GameUpdate,
+  Listening,
+  ListeningUpdate,
+  PresenceUpdate,
+  Streaming,
+  StreamingUpdate,
+} from "./types";
 
 import {
   gameActivityType,
   listeningActivityType,
+  streamingActivityType,
   pageSize,
   presenceStatuses,
   requestTimeout,
@@ -69,6 +78,23 @@ export class BasinSqlClient {
       read: (row) => {
         const { activities, ...update } = this.activityUpdate(row);
         return { ...update, listenings: this.listenings(activities) };
+      },
+    });
+  }
+
+  /**
+   * POST /basin-sql/query/{bucket} で、[from, to) に受けた PRESENCE_UPDATE を、それぞれの時点で続けていた配信
+   * （activities の type 1）とともに (受けた時刻, user) の順にすべて返す。ページは findPresenceUpdates と同じく
+   * たどって読む。
+   */
+  public async findStreamingUpdates(args: { from: Date; to: Date }) {
+    return this.findAllAfter({
+      after: undefined,
+      queryAfter: (after: StreamingUpdate | undefined) =>
+        this.activityUpdatesQuery({ ...args, after }),
+      read: (row) => {
+        const { activities, ...update } = this.activityUpdate(row);
+        return { ...update, streamings: this.streamings(activities) };
       },
     });
   }
@@ -365,6 +391,35 @@ LIMIT ${pageSize}`;
       ];
     });
     return [...Map.groupBy(listenings, (listening) => listening.key).values()].flatMap((same) =>
+      same.slice(0, 1),
+    );
+  }
+
+  /**
+   * Activities のうち type 1 のものを、streaming_key ごとに 1 つにして返す。name の無い activity は読まない。
+   */
+  private streamings(activities: unknown[]) {
+    const streamings = activities.flatMap((activity): Streaming[] => {
+      const name = this.field({ value: activity, key: "name" });
+      const url = this.field({ value: activity, key: "url" });
+      const details = this.field({ value: activity, key: "details" });
+
+      if (
+        this.field({ value: activity, key: "type" }) !== streamingActivityType ||
+        typeof name !== "string"
+      ) {
+        return [];
+      }
+      return [
+        {
+          key: typeof url === "string" ? url : name,
+          url: typeof url === "string" ? url : null,
+          name,
+          details: typeof details === "string" ? details : null,
+        },
+      ];
+    });
+    return [...Map.groupBy(streamings, (streaming) => streaming.key).values()].flatMap((same) =>
       same.slice(0, 1),
     );
   }
