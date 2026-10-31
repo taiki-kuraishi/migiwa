@@ -99,3 +99,21 @@ export const streamingIntervals = sqliteTable(
     index("streaming_intervals_ended_at_idx").on(t.endedAt),
   ],
 );
+
+// 各 user が各カスタムステータスを出していた区間 [started_at, ended_at)。PRESENCE_UPDATE の activities に
+// type 4 が現れた時刻で開き、文言（state）が変わったか消えた時刻で閉じる。
+// 文言を主キーに含めるのは、文言の無いカスタムステータスが実データ 202 件中 0 件だったため（2026-10-29 時点）。
+// name は常に "Custom Status" なので持たない。
+export const customStatusIntervals = sqliteTable(
+  "custom_status_intervals",
+  {
+    userId: text("user_id").notNull(),
+    state: text("state").notNull(),
+    startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
+    endedAt: integer("ended_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.state, t.startedAt] }),
+    index("custom_status_intervals_ended_at_idx").on(t.endedAt),
+  ],
+);

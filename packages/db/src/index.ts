@@ -1,5 +1,6 @@
 export {
   aggregationRuns,
+  customStatusIntervals,
   gameIntervals,
   listeningIntervals,
   presenceIntervals,

@@ -36,6 +36,13 @@
       "when": 1793423760976,
       "tag": "0004_create_streaming_intervals",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1793426864102,
+      "tag": "0005_create_custom_status_intervals",
+      "breakpoints": true
     }
   ]
 }
