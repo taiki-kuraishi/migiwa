@@ -26,3 +26,94 @@ export const presenceIntervals = sqliteTable(
     index("presence_intervals_ended_at_idx").on(t.endedAt),
   ],
 );
+
+// 各 user が各ゲームを遊んでいた区間 [started_at, ended_at)。PRESENCE_UPDATE の activities に type 0 が現れた
+// 時刻で開き、消えた時刻で閉じる。切り方と延ばし方は presence_intervals と同じ。
+// game_key は application_id、無ければ name。application_id を主キーにしないのは、NULL だと SQLite の主キーが
+// 一意にならないため。同じゲームが ID の違う 2 つの activity として届くことがあるが、まとめずに別の行にする。
+// official_game_id は Discord が文書化していない値で、まとめる手がかりとして残すだけにする。
+export const gameIntervals = sqliteTable(
+  "game_intervals",
+  {
+    userId: text("user_id").notNull(),
+    gameKey: text("game_key").notNull(),
+    applicationId: text("application_id"),
+    officialGameId: text("official_game_id"),
+    // 同じ application_id でも client の言語で名前が変わるので、区間を開いたときの名前を残す。
+    name: text("name").notNull(),
+    startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
+    endedAt: integer("ended_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.gameKey, t.startedAt] }),
+    index("game_intervals_ended_at_idx").on(t.endedAt),
+  ],
+);
+
+// 各 user が各曲を聴いていた区間 [started_at, ended_at)。PRESENCE_UPDATE の activities に type 2 が現れた時刻で
+// 開き、消えたか曲が変わった時刻で閉じる。時刻は bot が受けた received_at を使う。Spotify の timestamps
+// （曲の開始・終了予定）は client の時計で、ほかの区間の時刻と比べられないので使わない。
+// listening_key は sync_id（Spotify の track id）、無ければ activity の name。sync_id の無い activity
+// （bot の m!help など）は NULL になり、SQLite の主キーでは NULL が一意にならないので、別の列にする。
+export const listeningIntervals = sqliteTable(
+  "listening_intervals",
+  {
+    userId: text("user_id").notNull(),
+    listeningKey: text("listening_key").notNull(),
+    syncId: text("sync_id"),
+    // Activity の名前。Spotify なら曲によらず "Spotify"。
+    name: text("name").notNull(),
+    // Spotify の details は曲名、state はアーティスト。区間を開いたときの値を残す。
+    details: text("details"),
+    state: text("state"),
+    startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
+    endedAt: integer("ended_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.listeningKey, t.startedAt] }),
+    index("listening_intervals_ended_at_idx").on(t.endedAt),
+  ],
+);
+
+// 各 user が配信していた区間 [started_at, ended_at)。PRESENCE_UPDATE の activities に type 1 が現れた時刻で開き、
+// 消えた時刻で閉じる。
+// streaming_key は url（配信チャンネル）、無ければ activity の name。配信 1 回ごとの ID は Discord が送らないので、
+// 配信中にタイトル（details）が変わっても区間を切らない。url を主キーにしないのは、url の無い activity で NULL に
+// なり、SQLite の主キーでは NULL が一意にならないため。
+// state は実データ 199 件中 1 件にしか無かったので持たない（2026-10-29 時点）。
+export const streamingIntervals = sqliteTable(
+  "streaming_intervals",
+  {
+    userId: text("user_id").notNull(),
+    streamingKey: text("streaming_key").notNull(),
+    url: text("url"),
+    // 実データでは常に "Twitch" で、url の無い activity を区別する手がかりにならない。
+    name: text("name").notNull(),
+    // 配信タイトル。区間を開いたときの値を残す。
+    details: text("details"),
+    startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
+    endedAt: integer("ended_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.streamingKey, t.startedAt] }),
+    index("streaming_intervals_ended_at_idx").on(t.endedAt),
+  ],
+);
+
+// 各 user が各カスタムステータスを出していた区間 [started_at, ended_at)。PRESENCE_UPDATE の activities に
+// type 4 が現れた時刻で開き、文言（state）が変わったか消えた時刻で閉じる。
+// 文言を主キーに含めるのは、文言の無いカスタムステータスが実データ 202 件中 0 件だったため（2026-10-29 時点）。
+// name は常に "Custom Status" なので持たない。
+export const customStatusIntervals = sqliteTable(
+  "custom_status_intervals",
+  {
+    userId: text("user_id").notNull(),
+    state: text("state").notNull(),
+    startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
+    endedAt: integer("ended_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.state, t.startedAt] }),
+    index("custom_status_intervals_ended_at_idx").on(t.endedAt),
+  ],
+);

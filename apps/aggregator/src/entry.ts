@@ -1,7 +1,7 @@
-import { aggregatePresence } from "./scheduled";
+import { aggregate } from "./scheduled";
 
 export default {
   scheduled: async (controller, env) => {
-    await aggregatePresence({ env, now: new Date(controller.scheduledTime) });
+    await aggregate({ env, now: new Date(controller.scheduledTime) });
   },
 } satisfies ExportedHandler<Cloudflare.Env>;

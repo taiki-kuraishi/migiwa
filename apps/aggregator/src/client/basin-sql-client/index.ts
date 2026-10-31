@@ -1,2 +1,9 @@
 export { BasinSqlClient } from "./basin-sql-client";
-export type { PresenceStatus, PresenceUpdate } from "./types";
+export type {
+  CustomStatusUpdate,
+  GameUpdate,
+  ListeningUpdate,
+  PresenceStatus,
+  PresenceUpdate,
+  StreamingUpdate,
+} from "./types";

@@ -32,6 +32,8 @@ export default defineConfig({
     "func-style": "off",
     "id-length": "off",
     "max-params": "off",
+    // 文の数を上限に収めるために、三項演算子へ戻したり変数をやめたりと、読みやすさを下げる書き換えが続いた。
+    "max-statements": "off",
     "new-cap": "off",
     "no-console": "off",
     "no-duplicate-imports": "off",

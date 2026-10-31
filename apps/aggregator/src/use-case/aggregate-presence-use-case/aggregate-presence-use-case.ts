@@ -7,6 +7,7 @@ import type { PresenceIntervalRepository } from "../../repository/presence-inter
 import type { PresenceIntervalService } from "../../service/presence-interval-service";
 
 import { transaction } from "../../libs/db";
+import { pendingRange } from "../../utils/pending-range";
 import { runName } from "./constants";
 import { AggregationRunConflictError } from "./errors";
 
@@ -54,7 +55,7 @@ export class AggregatePresenceUseCase {
       const run = yield* await this.runs.findByName({ name: runName });
 
       // Step 2: まだ集計していない時間を決める。集計してよい時刻まで済んでいれば undefined を返す
-      const range = this.presence.pendingRange({ ...args, processedUntil: run?.processedUntil });
+      const range = pendingRange({ ...args, processedUntil: run?.processedUntil });
 
       if (range === undefined) {
         return Result.ok(undefined);
