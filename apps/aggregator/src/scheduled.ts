@@ -5,10 +5,13 @@ import { SecretClient } from "./client/secret-client";
 import { createDb } from "./libs/db";
 import { AggregationRunRepository } from "./repository/aggregation-run-repository";
 import { GameIntervalRepository } from "./repository/game-interval-repository";
+import { ListeningIntervalRepository } from "./repository/listening-interval-repository";
 import { PresenceIntervalRepository } from "./repository/presence-interval-repository";
 import { GameIntervalService } from "./service/game-interval-service";
+import { ListeningIntervalService } from "./service/listening-interval-service";
 import { PresenceIntervalService } from "./service/presence-interval-service";
 import { AggregateGameUseCase } from "./use-case/aggregate-game-use-case";
+import { AggregateListeningUseCase } from "./use-case/aggregate-listening-use-case";
 import {
   AggregatePresenceUseCase,
   AggregationRunConflictError,
@@ -36,10 +39,10 @@ const logResult = (args: {
 };
 
 /**
- * Secrets Store から token を読んで presence とゲームの集計を走らせ、それぞれの結果をログに残す。
+ * Secrets Store から token を読んで presence・ゲーム・リスニングの集計を走らせ、それぞれの結果をログに残す。
  * 1. Basin SQL と Turso の token を読む。読めなければログに残して終わる
  * 2. 読んだ token で client と repository を作る
- * 3. Presence とゲームを順に集計し、結果をログに残す。片方が失敗しても、もう片方は走らせる
+ * 3. Presence・ゲーム・リスニングを順に集計し、結果をログに残す。どれかが失敗しても、ほかは走らせる
  */
 export const aggregate = async (args: { env: Cloudflare.Env; now: Date }) => {
   // Step 1: Basin SQL と Turso の token を読む。読めなければログに残して終わる
@@ -67,16 +70,15 @@ export const aggregate = async (args: { env: Cloudflare.Env; now: Date }) => {
     bucket: args.env.BASIN_BUCKET,
     token: tokens.value.basin,
   });
-  const runs = new AggregationRunRepository({ db });
   const run = { now: args.now, delayMinutes: args.env.AGGREGATION_DELAY_MINUTES };
 
-  // Step 3: Presence とゲームを順に集計し、結果をログに残す。片方が失敗しても、もう片方は走らせる
+  // Step 3: Presence・ゲーム・リスニングを順に集計し、結果をログに残す。どれかが失敗しても、ほかは走らせる
   logResult({
     name: "presence",
     result: await new AggregatePresenceUseCase({
       db,
       basin,
-      runs,
+      runs: new AggregationRunRepository({ db }),
       intervals: new PresenceIntervalRepository({ db }),
       presence: new PresenceIntervalService(),
     }).execute(run),
@@ -86,9 +88,19 @@ export const aggregate = async (args: { env: Cloudflare.Env; now: Date }) => {
     result: await new AggregateGameUseCase({
       db,
       basin,
-      runs,
+      runs: new AggregationRunRepository({ db }),
       intervals: new GameIntervalRepository({ db }),
       games: new GameIntervalService(),
+    }).execute(run),
+  });
+  logResult({
+    name: "listenings",
+    result: await new AggregateListeningUseCase({
+      db,
+      basin,
+      runs: new AggregationRunRepository({ db }),
+      intervals: new ListeningIntervalRepository({ db }),
+      listenings: new ListeningIntervalService(),
     }).execute(run),
   });
 };

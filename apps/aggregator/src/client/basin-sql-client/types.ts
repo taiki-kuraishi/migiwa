@@ -27,3 +27,21 @@ export interface GameUpdate {
   // その時点で遊んでいたゲームのすべて。空なら何も遊んでいない。
   games: Game[];
 }
+
+// 1 つの PRESENCE_UPDATE の時点で聴いていた曲（activities の type 2）。key は sync_id、無ければ name。
+export interface Listening {
+  key: string;
+  syncId: string | null;
+  name: string;
+  details: string | null;
+  state: string | null;
+}
+
+export interface ListeningUpdate {
+  userId: string;
+  receivedAt: Date;
+  sessionId: string;
+  seq: number | null;
+  // その時点で聴いていた曲のすべて。空なら何も聴いていない。
+  listenings: Listening[];
+}

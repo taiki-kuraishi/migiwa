@@ -8,3 +8,6 @@ export const presenceStatuses = ["online", "idle", "dnd", "offline"] as const;
 
 // Activity の type のうち、ゲーム（Playing）。
 export const gameActivityType = 0;
+
+// Activity の type のうち、リスニング（Listening）。
+export const listeningActivityType = 2;

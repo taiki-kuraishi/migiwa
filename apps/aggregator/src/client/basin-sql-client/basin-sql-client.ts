@@ -1,8 +1,14 @@
 import { Result } from "better-result";
 
-import type { Game, GameUpdate, PresenceUpdate } from "./types";
+import type { Game, GameUpdate, Listening, ListeningUpdate, PresenceUpdate } from "./types";
 
-import { gameActivityType, pageSize, presenceStatuses, requestTimeout } from "./constants";
+import {
+  gameActivityType,
+  listeningActivityType,
+  pageSize,
+  presenceStatuses,
+  requestTimeout,
+} from "./constants";
 import { BasinSqlRequestError, BasinSqlResponseError } from "./errors";
 
 /**
@@ -42,8 +48,28 @@ export class BasinSqlClient {
   public async findGameUpdates(args: { from: Date; to: Date }) {
     return this.findAllAfter({
       after: undefined,
-      queryAfter: (after: GameUpdate | undefined) => this.gameUpdatesQuery({ ...args, after }),
-      read: (row) => this.gameUpdate(row),
+      queryAfter: (after: GameUpdate | undefined) => this.activityUpdatesQuery({ ...args, after }),
+      read: (row) => {
+        const { activities, ...update } = this.activityUpdate(row);
+        return { ...update, games: this.games(activities) };
+      },
+    });
+  }
+
+  /**
+   * POST /basin-sql/query/{bucket} で、[from, to) に受けた PRESENCE_UPDATE を、それぞれの時点で聴いていた曲
+   * （activities の type 2）とともに (受けた時刻, user) の順にすべて返す。ページは findPresenceUpdates と同じく
+   * たどって読む。
+   */
+  public async findListeningUpdates(args: { from: Date; to: Date }) {
+    return this.findAllAfter({
+      after: undefined,
+      queryAfter: (after: ListeningUpdate | undefined) =>
+        this.activityUpdatesQuery({ ...args, after }),
+      read: (row) => {
+        const { activities, ...update } = this.activityUpdate(row);
+        return { ...update, listenings: this.listenings(activities) };
+      },
     });
   }
 
@@ -162,7 +188,11 @@ LIMIT ${pageSize}`;
    */
   // Basin SQL には入れ子の JSON を開く関数が無く、activities を SQL で行に展開できないので、payload を丸ごと
   // 読んで Worker で開く。
-  private gameUpdatesQuery(args: { from: Date; to: Date; after: GameUpdate | undefined }) {
+  private activityUpdatesQuery(args: {
+    from: Date;
+    to: Date;
+    after: { receivedAt: Date; userId: string; sessionId: string; seq: number | null } | undefined;
+  }) {
     const ingestFrom = new Date(args.from.getTime() - 3_600_000).toISOString();
     // QUALIFY: presenceUpdatesQuery と同じく、同じ dispatch（session_id, seq）の行を 1 つにする。json の列は
     // DISTINCT で比べないが、残った重複は同じ activities なので区間を変えない。
@@ -248,9 +278,9 @@ LIMIT ${pageSize}`;
   }
 
   /**
-   * 1 行を GameUpdate に読む。列が欠けているか型が違えば throw する。
+   * 1 行を、受けた時刻・user・dispatch と payload の activities に読む。列が欠けているか型が違えば throw する。
    */
-  private gameUpdate(row: unknown): GameUpdate {
+  private activityUpdate(row: unknown) {
     const userId = this.field({ value: row, key: "user_id" });
     const receivedAt = Date.parse(String(this.field({ value: row, key: "received_at" })));
     const sessionId = this.field({ value: row, key: "session_id" });
@@ -269,14 +299,14 @@ LIMIT ${pageSize}`;
       (seq !== null && typeof seq !== "number") ||
       !Array.isArray(activities)
     ) {
-      throw new Error(`The row ${JSON.stringify(row)} cannot be read as a game update`);
+      throw new Error(`The row ${JSON.stringify(row)} cannot be read as an activity update`);
     }
     return {
       userId,
       receivedAt: new Date(receivedAt),
       sessionId,
       seq,
-      games: this.games(activities),
+      activities,
     };
   }
 
@@ -306,6 +336,37 @@ LIMIT ${pageSize}`;
       ];
     });
     return [...Map.groupBy(games, (game) => game.key).values()].flatMap((same) => same.slice(0, 1));
+  }
+
+  /**
+   * Activities のうち type 2 のものを、listening_key ごとに 1 つにして返す。name の無い activity は読まない。
+   */
+  private listenings(activities: unknown[]) {
+    const listenings = activities.flatMap((activity): Listening[] => {
+      const name = this.field({ value: activity, key: "name" });
+      const syncId = this.field({ value: activity, key: "sync_id" });
+      const details = this.field({ value: activity, key: "details" });
+      const state = this.field({ value: activity, key: "state" });
+
+      if (
+        this.field({ value: activity, key: "type" }) !== listeningActivityType ||
+        typeof name !== "string"
+      ) {
+        return [];
+      }
+      return [
+        {
+          key: typeof syncId === "string" ? syncId : name,
+          syncId: typeof syncId === "string" ? syncId : null,
+          name,
+          details: typeof details === "string" ? details : null,
+          state: typeof state === "string" ? state : null,
+        },
+      ];
+    });
+    return [...Map.groupBy(listenings, (listening) => listening.key).values()].flatMap((same) =>
+      same.slice(0, 1),
+    );
   }
 
   /**
