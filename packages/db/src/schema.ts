@@ -49,3 +49,28 @@ export const gameIntervals = sqliteTable(
     index("game_intervals_ended_at_idx").on(t.endedAt),
   ],
 );
+
+// 各 user が各曲を聴いていた区間 [started_at, ended_at)。PRESENCE_UPDATE の activities に type 2 が現れた時刻で
+// 開き、消えたか曲が変わった時刻で閉じる。時刻は bot が受けた received_at を使う。Spotify の timestamps
+// （曲の開始・終了予定）は client の時計で、ほかの区間の時刻と比べられないので使わない。
+// listening_key は sync_id（Spotify の track id）、無ければ activity の name。sync_id の無い activity
+// （bot の m!help など）は NULL になり、SQLite の主キーでは NULL が一意にならないので、別の列にする。
+export const listeningIntervals = sqliteTable(
+  "listening_intervals",
+  {
+    userId: text("user_id").notNull(),
+    listeningKey: text("listening_key").notNull(),
+    syncId: text("sync_id"),
+    // Activity の名前。Spotify なら曲によらず "Spotify"。
+    name: text("name").notNull(),
+    // Spotify の details は曲名、state はアーティスト。区間を開いたときの値を残す。
+    details: text("details"),
+    state: text("state"),
+    startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
+    endedAt: integer("ended_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.listeningKey, t.startedAt] }),
+    index("listening_intervals_ended_at_idx").on(t.endedAt),
+  ],
+);
