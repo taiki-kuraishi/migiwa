@@ -1,6 +1,8 @@
 import { Result } from "better-result";
 
 import type {
+  CustomStatus,
+  CustomStatusUpdate,
   Game,
   GameUpdate,
   Listening,
@@ -11,6 +13,7 @@ import type {
 } from "./types";
 
 import {
+  customStatusActivityType,
   gameActivityType,
   listeningActivityType,
   streamingActivityType,
@@ -95,6 +98,23 @@ export class BasinSqlClient {
       read: (row) => {
         const { activities, ...update } = this.activityUpdate(row);
         return { ...update, streamings: this.streamings(activities) };
+      },
+    });
+  }
+
+  /**
+   * POST /basin-sql/query/{bucket} で、[from, to) に受けた PRESENCE_UPDATE を、それぞれの時点で出していた
+   * カスタムステータス（activities の type 4）とともに (受けた時刻, user) の順にすべて返す。ページは
+   * findPresenceUpdates と同じくたどって読む。
+   */
+  public async findCustomStatusUpdates(args: { from: Date; to: Date }) {
+    return this.findAllAfter({
+      after: undefined,
+      queryAfter: (after: CustomStatusUpdate | undefined) =>
+        this.activityUpdatesQuery({ ...args, after }),
+      read: (row) => {
+        const { activities, ...update } = this.activityUpdate(row);
+        return { ...update, customStatuses: this.customStatuses(activities) };
       },
     });
   }
@@ -422,6 +442,25 @@ LIMIT ${pageSize}`;
     return [...Map.groupBy(streamings, (streaming) => streaming.key).values()].flatMap((same) =>
       same.slice(0, 1),
     );
+  }
+
+  /**
+   * Activities のうち type 4 のものを、文言（state）ごとに 1 つにして返す。
+   */
+  // 絵文字だけのカスタムステータスは state が無く、custom_status_intervals の state は NOT NULL なので読まない。
+  private customStatuses(activities: unknown[]) {
+    const states = activities.flatMap((activity) => {
+      const state = this.field({ value: activity, key: "state" });
+
+      if (
+        this.field({ value: activity, key: "type" }) !== customStatusActivityType ||
+        typeof state !== "string"
+      ) {
+        return [];
+      }
+      return [state];
+    });
+    return [...new Set(states)].map((state): CustomStatus => ({ state }));
   }
 
   /**

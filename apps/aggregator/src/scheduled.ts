@@ -4,14 +4,17 @@ import { BasinSqlClient } from "./client/basin-sql-client";
 import { SecretClient } from "./client/secret-client";
 import { createDb } from "./libs/db";
 import { AggregationRunRepository } from "./repository/aggregation-run-repository";
+import { CustomStatusIntervalRepository } from "./repository/custom-status-interval-repository";
 import { GameIntervalRepository } from "./repository/game-interval-repository";
 import { ListeningIntervalRepository } from "./repository/listening-interval-repository";
 import { PresenceIntervalRepository } from "./repository/presence-interval-repository";
 import { StreamingIntervalRepository } from "./repository/streaming-interval-repository";
+import { CustomStatusIntervalService } from "./service/custom-status-interval-service";
 import { GameIntervalService } from "./service/game-interval-service";
 import { ListeningIntervalService } from "./service/listening-interval-service";
 import { PresenceIntervalService } from "./service/presence-interval-service";
 import { StreamingIntervalService } from "./service/streaming-interval-service";
+import { AggregateCustomStatusUseCase } from "./use-case/aggregate-custom-status-use-case";
 import { AggregateGameUseCase } from "./use-case/aggregate-game-use-case";
 import { AggregateListeningUseCase } from "./use-case/aggregate-listening-use-case";
 import {
@@ -42,10 +45,11 @@ const logResult = (args: {
 };
 
 /**
- * Secrets Store から token を読んで presence・ゲーム・リスニング・配信の集計を走らせ、それぞれの結果をログに残す。
+ * Secrets Store から token を読んで presence・ゲーム・リスニング・配信・カスタムステータスの集計を走らせ、
+ * それぞれの結果をログに残す。
  * 1. Basin SQL と Turso の token を読む。読めなければログに残して終わる
  * 2. 読んだ token で client と repository を作る
- * 3. Presence・ゲーム・リスニング・配信を順に集計し、結果をログに残す。どれかが失敗しても、ほかは走らせる
+ * 3. 各集計を順に走らせ、結果をログに残す。どれかが失敗しても、ほかは走らせる
  */
 export const aggregate = async (args: { env: Cloudflare.Env; now: Date }) => {
   // Step 1: Basin SQL と Turso の token を読む。読めなければログに残して終わる
@@ -75,7 +79,7 @@ export const aggregate = async (args: { env: Cloudflare.Env; now: Date }) => {
   });
   const run = { now: args.now, delayMinutes: args.env.AGGREGATION_DELAY_MINUTES };
 
-  // Step 3: Presence・ゲーム・リスニング・配信を順に集計し、結果をログに残す。どれかが失敗しても、ほかは走らせる
+  // Step 3: 各集計を順に走らせ、結果をログに残す。どれかが失敗しても、ほかは走らせる
   logResult({
     name: "presence",
     result: await new AggregatePresenceUseCase({
@@ -114,6 +118,16 @@ export const aggregate = async (args: { env: Cloudflare.Env; now: Date }) => {
       runs: new AggregationRunRepository({ db }),
       intervals: new StreamingIntervalRepository({ db }),
       streamings: new StreamingIntervalService(),
+    }).execute(run),
+  });
+  logResult({
+    name: "custom statuses",
+    result: await new AggregateCustomStatusUseCase({
+      db,
+      basin,
+      runs: new AggregationRunRepository({ db }),
+      intervals: new CustomStatusIntervalRepository({ db }),
+      customStatuses: new CustomStatusIntervalService(),
     }).execute(run),
   });
 };

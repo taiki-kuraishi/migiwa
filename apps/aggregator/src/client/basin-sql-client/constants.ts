@@ -14,3 +14,6 @@ export const listeningActivityType = 2;
 
 // Activity の type のうち、配信（Streaming）。
 export const streamingActivityType = 1;
+
+// Activity の type のうち、カスタムステータス（Custom）。
+export const customStatusActivityType = 4;

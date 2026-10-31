@@ -62,3 +62,17 @@ export interface StreamingUpdate {
   // その時点で続けていた配信のすべて。空なら配信していない。
   streamings: Streaming[];
 }
+
+// 1 つの PRESENCE_UPDATE の時点で出していたカスタムステータス（activities の type 4）の文言。
+export interface CustomStatus {
+  state: string;
+}
+
+export interface CustomStatusUpdate {
+  userId: string;
+  receivedAt: Date;
+  sessionId: string;
+  seq: number | null;
+  // その時点で出していたカスタムステータスのすべて。空なら出していない。
+  customStatuses: CustomStatus[];
+}
