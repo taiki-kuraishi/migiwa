@@ -7,7 +7,7 @@
       "packages/*"
     ],
     "catalog": {
-      "@cloudflare/vitest-plugin": "1.1.2",
+      "@cloudflare/vitest-plugin": "1.9.0",
       "@discordjs/rest": "2.6.3",
       "@libsql/client": "0.17.4",
       "@msw/cloudflare": "0.2.0",
