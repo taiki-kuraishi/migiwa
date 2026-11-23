@@ -6,8 +6,6 @@
   "prHourlyLimit": 0,
   "prConcurrentLimit": 1,
   "platformAutomerge": false,
-  "reviewers": ["taiki-kuraishi"],
-  "assignAutomerge": true,
   "osvVulnerabilityAlerts": true,
   "vulnerabilityAlerts": { "enabled": true },
   "lockFileMaintenance": { "enabled": true, "automerge": true },
