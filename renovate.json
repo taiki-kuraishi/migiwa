@@ -1,31 +1,53 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended", ":dependencyDashboardApproval"],
+  "extends": ["config:recommended"],
   "timezone": "Asia/Tokyo",
+  "schedule": ["* * * * 1"],
   "prHourlyLimit": 0,
-  "prConcurrentLimit": 3,
-  "minimumReleaseAge": "1 day",
+  "prConcurrentLimit": 1,
   "platformAutomerge": false,
   "reviewers": ["taiki-kuraishi"],
   "assignAutomerge": true,
+  "osvVulnerabilityAlerts": true,
   "vulnerabilityAlerts": { "enabled": true },
   "lockFileMaintenance": { "enabled": true, "automerge": true },
+  "constraints": { "bun": "1.4.3" },
   "packageRules": [
     {
-      "description": "Routine patch PRs would spend GitHub Actions minutes; vulnerabilityAlerts force-enables security patches, which this rule then automerges",
-      "matchUpdateTypes": ["patch"],
-      "enabled": false,
+      "description": "Merge everything except major automatically once CI passes. Patch is listed for the security patches that still open; the patch rule below skips the rest. Branches are only created on Mondays (top-level schedule); vulnerability alerts keep their own immediate schedule",
+      "matchUpdateTypes": ["minor", "patch", "digest"],
       "automerge": true
     },
     {
-      "description": "Minor and digest updates rarely contain breaking changes",
-      "matchUpdateTypes": ["minor", "digest"],
-      "automerge": true
-    },
-    {
-      "description": "Major updates can break APIs",
+      "description": "Major updates can break APIs, so merge them by hand, and only open one after approval on the Dependency Dashboard: an open major takes the single open-PR slot and holds up every other update",
       "matchUpdateTypes": ["major"],
-      "automerge": false
+      "automerge": false,
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "Routine patch PRs would spend GitHub Actions minutes. Security patches still open because vulnerabilityAlerts.enabled=true is forced onto alert updates (GitHub alerts and OSV) and re-enables them",
+      "matchUpdateTypes": ["patch"],
+      "enabled": false
+    },
+    {
+      "description": "bun is pinned in mise.toml (CI), packageManager, and constraints.bun (the bun Renovate installs for bun.lock; the renovate-config manager bumps it). A bun.lock written by a newer bun than CI's can fail --frozen-lockfile",
+      "matchDepNames": ["bun"],
+      "groupName": "bun"
+    },
+    {
+      "description": "oxlint-tsgolint's version tracks TypeScript's (7.0.2xxx = TS 7.0.2)",
+      "matchPackageNames": ["typescript", "oxlint-tsgolint"],
+      "groupName": "typescript"
+    },
+    {
+      "description": "worker-configuration.d.ts records the workerd version bundled with wrangler, so CI's cf-typegen diff check fails until it is regenerated. The regeneration runs wrangler from node_modules, so a full bun install comes first: bun dedupe only installs when it removes a duplicate",
+      "matchPackageNames": ["wrangler"],
+      "postUpgradeTasks": {
+        "commands": ["bun install", "bun dedupe", "bun x vp run -r cf-typegen"],
+        "fileFilters": ["bun.lock", "apps/*/worker-configuration.d.ts"],
+        "executionMode": "branch",
+        "installTools": { "bun": {}, "node": {} }
+      }
     }
   ],
   "customManagers": [
@@ -42,8 +64,9 @@
     }
   ],
   "postUpgradeTasks": {
-    "commands": ["bun install --lockfile-only"],
+    "commands": ["bun install --lockfile-only", "bun dedupe --lockfile-only"],
     "fileFilters": ["bun.lock"],
-    "executionMode": "branch"
+    "executionMode": "branch",
+    "installTools": { "bun": {} }
   }
 }
