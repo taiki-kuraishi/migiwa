@@ -1,17 +1,46 @@
 name: ci
+# paths: で workflow ごと絞らない。skip された workflow は check を報告せず、必須 check が Pending のまま merge を止める。
 on:
   push:
     branches:
       - main
   pull_request:
-  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  check:
+  changes:
+    runs-on: ubuntu-slim
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      bun: ${{ steps.filter.outputs.bun }}
+      terraform: ${{ steps.filter.outputs.terraform }}
+    steps:
+      - if: github.event_name == 'push'
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          # oxfmt は md/json/yml も整形するので、bun 側は repo 全体を見る。
+          filters: |
+            bun:
+              - "**"
+            terraform:
+              - "infra/**"
+              - "mise.toml"
+              - "mise.lock"
+              - ".github/workflows/ci.yml"
+
+  bun:
+    needs: changes
+    if: needs.changes.outputs.bun == 'true'
     runs-on: ubuntu-slim
     timeout-minutes: 10
     steps:
@@ -43,6 +72,8 @@ jobs:
   # knip が使う oxc-parser は数 GB の ArrayBuffer を先に確保し、ubuntu-slim の memory では
   # 確保できない（"RangeError: Array buffer allocation failed"）。
   knip:
+    needs: changes
+    if: needs.changes.outputs.bun == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -52,3 +83,40 @@ jobs:
           install_args: "bun node"
       - uses: ./.github/actions/setup-bun
       - run: bunx vp run knip
+
+  terraform:
+    needs: changes
+    if: needs.changes.outputs.terraform == 'true'
+    runs-on: ubuntu-slim
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        stack:
+          - aws
+          - cloudflare
+    defaults:
+      run:
+        working-directory: infra/${{ matrix.stack }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
+        with:
+          install_args: terraform
+      - run: terraform fmt -check -recursive -diff
+      # backend の認証を持たないので state には触れず、provider は .terraform.lock.hcl の hash で固定する。
+      - run: terraform init -backend=false -input=false -lockfile=readonly
+      - run: terraform validate
+
+  check:
+    needs:
+      - changes
+      - bun
+      - knip
+      - terraform
+    if: always()
+    runs-on: ubuntu-slim
+    timeout-minutes: 5
+    steps:
+      - if: needs.changes.result != 'success' || contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
