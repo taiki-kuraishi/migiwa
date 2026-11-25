@@ -5,7 +5,7 @@
   "schedule": ["* * * * 1"],
   "prHourlyLimit": 0,
   "prConcurrentLimit": 1,
-  "platformAutomerge": false,
+  "platformAutomerge": true,
   "osvVulnerabilityAlerts": true,
   "vulnerabilityAlerts": { "enabled": true },
   "lockFileMaintenance": { "enabled": true, "automerge": true },
